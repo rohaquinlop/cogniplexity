@@ -1,4 +1,6 @@
+#include <iostream>
 #include <stdexcept>
+#include <string>
 
 #include "cli_arguments.h"
 
@@ -50,6 +52,25 @@ CLI_ARGUMENTS load_from_vs_arguments(std::vector<std::string> &arguments) {
 
   if (!reading_paths and paths.empty())
     throw std::invalid_argument("Expected at least one path");
+
+  for (i = i - 1; i < arguments.size(); i++) {
+    if (is_max_complexity(arguments[i])) {
+      try {
+        max_complexity_allowed = std::stoi(arguments[i + 1]);
+      } catch (const std::invalid_argument &e) {
+        throw std::invalid_argument(
+            "Expected a number when defining max_complexity_allowed");
+      }
+      i++;
+    } else if (is_quiet(arguments[i]))
+      quiet = true;
+    else if (is_ignore_complexity(arguments[i]))
+      ignore_complexity = true;
+    else if (is_detail(arguments[i])) {
+      // Validate that there's still range, then check that the next value is
+      // one of the two possibles
+    }
+  }
 
   return CLI_ARGUMENTS{paths,      max_complexity_allowed,
                        quiet,      ignore_complexity,
