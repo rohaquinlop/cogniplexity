@@ -18,6 +18,7 @@ struct CLI_ARGUMENTS {
   bool output_json = false;         // --output-json -json
 };
 
+std::vector<std::string> args_to_string(char**, int);
 CLI_ARGUMENTS load_from_vs_arguments(std::vector<std::string>&);
 
 #endif

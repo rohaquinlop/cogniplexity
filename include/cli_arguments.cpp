@@ -1,8 +1,18 @@
-#include <iostream>
 #include <stdexcept>
 #include <string>
 
 #include "cli_arguments.h"
+
+std::vector<std::string> args_to_string(char **args, int total) {
+  std::vector<std::string> strings;
+
+  for (int i = 1; i < total; i++) {
+    std::string s(args[i]);
+    strings.push_back(s);
+  }
+
+  return strings;
+}
 
 bool is_max_complexity(std::string &s) {
   return s == "--max-complexity" or s == "-mx";
@@ -55,21 +65,53 @@ CLI_ARGUMENTS load_from_vs_arguments(std::vector<std::string> &arguments) {
 
   for (i = i - 1; i < arguments.size(); i++) {
     if (is_max_complexity(arguments[i])) {
+      if (++i >= arguments.size())
+        throw std::invalid_argument(
+            "Expected max cognitive complexity allowed, use '-mx $number'");
+
       try {
-        max_complexity_allowed = std::stoi(arguments[i + 1]);
+        max_complexity_allowed = std::stoi(arguments[i]);
       } catch (const std::invalid_argument &e) {
         throw std::invalid_argument(
-            "Expected a number when defining max_complexity_allowed");
+            "Expected a number as max complexity allowed");
       }
-      i++;
     } else if (is_quiet(arguments[i]))
       quiet = true;
     else if (is_ignore_complexity(arguments[i]))
       ignore_complexity = true;
     else if (is_detail(arguments[i])) {
-      // Validate that there's still range, then check that the next value is
-      // one of the two possibles
-    }
+      if (++i >= arguments.size())
+        throw std::invalid_argument(
+            "Expected detail level, use '-d low' or '-d normal'");
+
+      if (arguments[i] == "low")
+        detail = LOW;
+      else if (arguments[i] == "normal")
+        detail = NORMAL;
+      else
+        throw std::invalid_argument(
+            "Invalid detail level, use 'low' or 'normal'");
+    } else if (is_sort(arguments[i])) {
+      if (++i >= arguments.size())
+        throw std::invalid_argument(
+            "Expected sort order, use '-s asc' '-s desc' '-s name'");
+
+      if (arguments[i] == "asc")
+        sort = ASC;
+      else if (arguments[i] == "desc")
+        sort = DESC;
+      else if (arguments[i] == "name")
+        sort = NAME;
+      else
+        throw std::invalid_argument(
+            "Invalid sort order, use '-s asc' '-s desc' '-s name'");
+    } else if (is_output_csv(arguments[i]))
+      output_csv = true;
+    else if (is_output_json(arguments[i]))
+      output_json = true;
+    else
+      throw std::invalid_argument("Invalid argument: '" + arguments[i] +
+                                  "' on call, use the valid arguments");
   }
 
   return CLI_ARGUMENTS{paths,      max_complexity_allowed,
