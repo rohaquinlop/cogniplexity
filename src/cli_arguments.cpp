@@ -1,7 +1,7 @@
 #include <stdexcept>
 #include <string>
 
-#include "cli_arguments.h"
+#include "../include/cli_arguments.h"
 
 std::vector<std::string> args_to_string(char **args, int total) {
   std::vector<std::string> strings;
