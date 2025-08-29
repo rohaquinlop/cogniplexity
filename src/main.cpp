@@ -25,6 +25,9 @@ void parse_python() {
   std::cout << ts_node_grammar_type(root_node) << std::endl;
   std::cout << ts_node_grammar_type(array_node) << std::endl;
   std::cout << ts_node_grammar_type(number_node) << std::endl;
+
+  ts_tree_delete(tree);
+  ts_parser_delete(parser);
 }
 
 int main(int argc, char** argv) {
