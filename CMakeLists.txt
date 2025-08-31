@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.10)
 
-project(cogniplexity VERSION 0.1 LANGUAGES C CXX)
+project(cognity VERSION 0.1 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -47,15 +47,14 @@ ts_add_grammar(python ${CMAKE_CURRENT_SOURCE_DIR}/tree-sitter-python)
 
 # Executable
 set(SOURCES
-  src/main.cpp
-  src/cli_arguments.cpp
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp"
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/cli_arguments.cpp"
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/file_operations.cpp"
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/cognitive_complexity.cpp"
 )
 
-add_executable(cogniplexity ${SOURCES})
-# target_include_directories(cogniplexity PRIVATE
-#   "${CMAKE_CURRENT_SOURCE_DIR}/include"
-# )
-target_link_libraries(cogniplexity PRIVATE
+add_executable(cognity ${SOURCES})
+target_link_libraries(cognity PRIVATE
   ts_python
   tree_sitter
 )
