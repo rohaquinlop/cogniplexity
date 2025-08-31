@@ -1,5 +1,3 @@
-#include <cstdint>
-
 #include "../include/cognitive_complexity.h"
 
 std::vector<FunctionComplexity> functions_complexity_file(
@@ -31,6 +29,7 @@ std::vector<FunctionComplexity> functions_complexity_file(
           .row = p.row,
           .start_col = p.column,
           .end_col = q.column,
+          .lines = lines_complexity,
       });
     }
   }
@@ -41,7 +40,7 @@ std::vector<FunctionComplexity> functions_complexity_file(
 
 std::pair<unsigned int, std::vector<LineComplexity>>
 compute_cognitive_complexity(TSNode current_node, int nesting_level) {
-  unsigned int complexity = 0;
+  unsigned int complexity = 0, stmt_complexity;
   std::vector<LineComplexity> lines_complexity;
 
   if (is_decorator(current_node))
@@ -49,12 +48,10 @@ compute_cognitive_complexity(TSNode current_node, int nesting_level) {
                                         nesting_level);
   std::string node_type = ts_node_grammar_type(current_node), child_type;
   TSNode child_node;
-  int total_children = ts_node_child_count(current_node);
   TSPoint p, q;
 
   if (node_type == "class_definition") {
-    TSNode body = ts_node_child_by_field_name(current_node, "body", 4);
-    total_children = ts_node_child_count(body);
+    auto [body, total_children] = get_body(current_node);
 
     for (int i = 0; i < total_children; i++) {
       child_node = ts_node_named_child(body, i);
@@ -73,8 +70,7 @@ compute_cognitive_complexity(TSNode current_node, int nesting_level) {
     }
 
   } else if (node_type == "function_definition") {
-    TSNode body = ts_node_child_by_field_name(current_node, "body", 4);
-    total_children = ts_node_child_count(body);
+    auto [body, total_children] = get_body(current_node);
 
     for (int i = 0; i < total_children; i++) {
       child_node = ts_node_named_child(body, i);
@@ -93,15 +89,32 @@ compute_cognitive_complexity(TSNode current_node, int nesting_level) {
 
       if (child_type == "function_definition") nesting_level--;
     }
-  } else if (node_type == "for_statement") {
-    unsigned int stmt_complexity = 1 + nesting_level;
-    p = ts_node_start_point(child_node);
-    q = ts_node_end_point(child_node);
-    lines_complexity.push_back(LineComplexity{
-        .row = p.row,
-        .start_col = p.column,
-        .end_col = q.column,
-    });
+  } else if (node_type == "for_statement" or node_type == "while_statement") {
+    stmt_complexity = 1 + nesting_level;
+    complexity += stmt_complexity;
+    lines_complexity.push_back(
+        build_line_complexity(current_node, stmt_complexity));
+
+    auto [body, total_children] = get_body(current_node);
+
+    // TODO: check while condition
+
+    for (int i = 0; i < total_children; i++) {
+      child_node = ts_node_named_child(body, i);
+      auto [child_complexity, child_lines_complexity] =
+          compute_cognitive_complexity(child_node, nesting_level + 1);
+
+      complexity += child_complexity;
+      if (!child_lines_complexity.empty())
+        lines_complexity.insert(lines_complexity.end(),
+                                child_lines_complexity.begin(),
+                                child_lines_complexity.end());
+    }
+  } else if (node_type == "if_statement") {
+    stmt_complexity = 1 + nesting_level;
+    complexity += stmt_complexity;
+    lines_complexity.push_back(
+        build_line_complexity(current_node, stmt_complexity));
   }
 
   return {complexity, lines_complexity};
@@ -134,4 +147,35 @@ static std::string_view slice_source(const std::string& source_code,
   const uint32_t a = ts_node_start_byte(node);
   const uint32_t b = ts_node_end_byte(node);
   return std::string_view(source_code).substr(a, b - a);
+}
+
+static LineComplexity build_line_complexity(TSNode node,
+                                            unsigned int complexity) {
+  TSPoint p = ts_node_start_point(node), q = ts_node_end_point(node);
+
+  return LineComplexity{
+      .row = p.row,
+      .start_col = p.column,
+      .end_col = q.column,
+      .complexity = complexity,
+  };
+}
+
+static std::pair<TSNode, int> get_body(TSNode node) {
+  TSNode body = ts_node_child_by_field_name(node, "body", 4);
+  int total_children = ts_node_child_count(body);
+
+  return {body, total_children};
+}
+
+static unsigned int count_bool_operators(TSNode node) {
+  std::string node_type = ts_node_grammar_type(node);
+}
+
+static BooleanOp get_boolean_op(TSNode node) {
+  TSNode left = ts_node_child_by_field_name(node, "left", 4),
+         right = ts_node_child_by_field_name(node, "right", 5);
+
+  TSPoint e_left = ts_node_end_point(left),
+          s_right = ts_node_start_point(right);
 }

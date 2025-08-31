@@ -1,6 +1,7 @@
 #ifndef COGNITIVE_COMPLEXITY_H
 #define COGNITIVE_COMPLEXITY_H
 
+#include <cstring>
 #include <iostream>
 #include <vector>
 
@@ -14,7 +15,7 @@ struct LineComplexity {
   unsigned int row;
   unsigned int start_col;
   unsigned int end_col;
-  int complexity;
+  unsigned int complexity;
 };
 
 struct FunctionComplexity {
@@ -36,6 +37,8 @@ struct CodeComplexity {
   std::vector<FunctionComplexity> functions;
 };
 
+enum BooleanOp { And, Or };
+
 std::vector<FunctionComplexity> functions_complexity_file(const std::string&,
                                                           TSParser*);
 std::pair<unsigned int, std::vector<LineComplexity>>
@@ -44,4 +47,9 @@ static bool is_decorator(TSNode&);
 static std::string_view slice_source(const std::string&, TSNode);
 static std::string_view get_function_name(TSNode, const std::string&);
 
+static LineComplexity build_line_complexity(TSNode, unsigned int);
+static std::pair<TSNode, int> get_body(TSNode);
+static unsigned int count_bool_operators(TSNode);
+
+static BooleanOp get_boolean_op(TSNode);
 #endif
