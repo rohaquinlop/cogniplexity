@@ -3,6 +3,8 @@
 #include <vector>
 
 #include "../include/cli_arguments.h"
+#include "../include/cognitive_complexity.h"
+#include "../include/file_operations.h"
 #include "../tree-sitter/lib/include/tree_sitter/api.h"
 
 extern "C" {
@@ -45,7 +47,29 @@ int main(int argc, char** argv) {
     return 1;
   }
 
-  parse_python();
+  TSParser* parser = ts_parser_new();
+  ts_parser_set_language(parser, tree_sitter_python());
+  std::string source_code;
+
+  for (std::string& path : cli_args.paths) {
+    try {
+      source_code = load_file_content(path);
+    } catch (const std::runtime_error& e) {
+      std::cerr << "Error: " << e.what() << std::endl;
+      return 1;
+    }
+
+    std::vector<FunctionComplexity> functions_complexity =
+        functions_complexity_file(source_code, parser);
+
+    for (FunctionComplexity& function : functions_complexity) {
+      std::cout << "name: " << function.name
+                << " - cognitive complexity: " << function.complexity
+                << std::endl;
+    }
+  }
+
+  ts_parser_delete(parser);
 
   return 0;
 }

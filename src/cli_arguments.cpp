@@ -56,14 +56,16 @@ CLI_ARGUMENTS load_from_vs_arguments(std::vector<std::string> &arguments) {
   for (i = 0; i < arguments.size() && reading_paths; i++) {
     if (!is_argument(arguments[i]))
       paths.push_back(arguments[i]);
-    else
+    else {
       reading_paths = false;
+      i--;
+    }
   }
 
   if (!reading_paths and paths.empty())
     throw std::invalid_argument("Expected at least one path");
 
-  for (i = i - 1; i < arguments.size(); i++) {
+  for (i = i; i < arguments.size(); i++) {
     if (is_max_complexity(arguments[i])) {
       if (++i >= arguments.size())
         throw std::invalid_argument(
