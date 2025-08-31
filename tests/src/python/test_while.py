@@ -1,0 +1,7 @@
+def test_while():
+    i = 0
+    sum = 0
+    while i < 10:
+        i += 1
+        sum += i
+    return sum
