@@ -37,7 +37,7 @@ struct CodeComplexity {
   std::vector<FunctionComplexity> functions;
 };
 
-enum BooleanOp { And, Or };
+enum BoolOp { And, Or, Not, Unknown };
 
 std::vector<FunctionComplexity> functions_complexity_file(const std::string&,
                                                           TSParser*);
@@ -49,7 +49,11 @@ static std::string_view get_function_name(TSNode, const std::string&);
 
 static LineComplexity build_line_complexity(TSNode, unsigned int);
 static std::pair<TSNode, int> get_body(TSNode);
-static unsigned int count_bool_operators(TSNode);
+static unsigned int count_bool_operators(TSNode, const std::string&);
 
-static BooleanOp get_boolean_op(TSNode);
+static BoolOp get_boolean_op(TSNode, const std::string&);
+static BoolOp from_text_get_bool_op(std::string_view&);
+static TSNode unwrap_parens(TSNode);
+static TSNode prev_named(TSNode);
+static TSNode next_named(TSNode);
 #endif

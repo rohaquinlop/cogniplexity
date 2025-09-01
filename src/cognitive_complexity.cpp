@@ -1,3 +1,6 @@
+#include <cstdint>
+#include <string_view>
+
 #include "../include/cognitive_complexity.h"
 
 std::vector<FunctionComplexity> functions_complexity_file(
@@ -168,14 +171,60 @@ static std::pair<TSNode, int> get_body(TSNode node) {
   return {body, total_children};
 }
 
-static unsigned int count_bool_operators(TSNode node) {
+static unsigned int count_bool_operators(TSNode node,
+                                         const std::string& source_code) {
   std::string node_type = ts_node_grammar_type(node);
+  unsigned int complexity = 0;
+
+  if (node_type != "boolean_operator" and node_type != "not_operator") return 0;
+
+  BoolOp current_bool = get_boolean_op(node, source_code);
+
+  if (node_type == "boolean_operator") {
+    TSNode left = ts_node_child_by_field_name(node, "left", 4),
+           right = ts_node_child_by_field_name(node, "right", 5);
+
+    BoolOp left_bool = get_boolean_op(left, source_code),
+           right_bool = get_boolean_op(right, source_code);
+
+    if (left_bool != BoolOp::Unknown and current_bool != left_bool)
+      complexity++;
+    if (right_bool != BoolOp::Unknown and current_bool != right_bool)
+      complexity++;
+
+    complexity += count_bool_operators(left, source_code);
+    complexity += count_bool_operators(right, source_code);
+  } else if (node_type == "not_operator") {
+    //
+  }
+
+  return complexity;
 }
 
-static BooleanOp get_boolean_op(TSNode node) {
-  TSNode left = ts_node_child_by_field_name(node, "left", 4),
-         right = ts_node_child_by_field_name(node, "right", 5);
+static BoolOp get_boolean_op(TSNode node, const std::string& source_code) {
+  std::string_view s = slice_source(source_code, node);
+  return from_text_get_bool_op(s);
+}
 
-  TSPoint e_left = ts_node_end_point(left),
-          s_right = ts_node_start_point(right);
+static BoolOp from_text_get_bool_op(std::string_view& s) {
+  if (s == "and" or s == "&&") return BoolOp::And;
+  if (s == "or" or s == "||") return BoolOp::Or;
+  if (s == "not" or s == "!") return BoolOp::Not;
+
+  return BoolOp::Unknown;
+}
+
+static TSNode unwrap_parens(TSNode node) {
+  TSNode inner;
+  while (!ts_node_is_null(node) and
+         std::string_view{ts_node_type(node)} == "parenthesized_expression") {
+    inner = ts_node_child_by_field_name(node, "expression", 10);
+    if (ts_node_is_null(inner)) {
+      if (!ts_node_named_child_count(node)) break;
+      inner = ts_node_named_child(node, 0);
+    }
+    node = inner;
+  }
+
+  return node;
 }
