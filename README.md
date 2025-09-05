@@ -51,9 +51,13 @@ CLI options
 - `-i, --ignore-complexity` — do not fail based on max
 - `-d, --detail <low|normal>` — detail level (default normal)
 - `-s, --sort <asc|desc|name>` — sort order (default name)
-- `-csv, --output-csv` — CSV output
-- `-json, --output-json` — JSON output
+- `-csv, --output-csv` — CSV output (Function printed as `name@line`; `line` also included as a separate column)
+- `-json, --output-json` — JSON output (`function` is `name@line`; `line` remains as a separate field)
 - `-l, --lang <list>` — comma‑separated languages to include when scanning directories or files. Examples: `-l py,js`, `-l typescript`, `-l c,cpp`. Supported: `py|python`, `js|javascript`, `ts|typescript|tsx`, `c`, `cpp|c++|cc|cxx`.
+- `-fw, --max-fn-width <int>` — truncate the printed Function column to at most this width. When truncation occurs and width > 3, an ellipsis (`...`) is appended; the `@line` suffix is preserved when possible. If omitted or set to 0, no truncation is applied.
+
+Help
+- `-h, --help` — print a short usage summary and exit.
 
 ### Language Filtering
 - Purpose: restrict scanning to specific languages when passing files or directories.
@@ -92,9 +96,14 @@ Note: Java files are detected and skipped (no builder yet).
 
 ```
 $ ./build/cognity src -l py,cpp
-name: parse_items - cognitive complexity: 4
-name: utils::format - cognitive complexity: 2
-name: Parser::parse_block - cognitive complexity: 7
+src/parser.py
+  CC  Function
+   4  parse_items@12
+   7  parse_block@58
+
+src/utils.cpp
+  CC  Function
+   2  utils::format@23
 ```
 
 ## Troubleshooting
