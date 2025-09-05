@@ -1,6 +1,7 @@
 #include <iostream>
 #include <stdexcept>
 #include <vector>
+#include <filesystem>
 
 #include "../include/cli_arguments.h"
 #include "../include/cognitive_complexity.h"
@@ -52,6 +53,38 @@ static Language detect_language_from_path(const std::string &path) {
   return Language::Unknown;
 }
 
+static bool language_is_selected(Language lang, const std::vector<Language> &filter) {
+  if (filter.empty()) return true;
+  for (auto l : filter) if (l == lang) return true;
+  return false;
+}
+
+static void collect_source_files(const std::vector<std::string> &inputs,
+                                 const std::vector<Language> &filter,
+                                 std::vector<std::string> &out) {
+  namespace fs = std::filesystem;
+  for (const auto &p : inputs) {
+    fs::path path(p);
+    std::error_code ec;
+    if (fs::is_directory(path, ec)) {
+      for (fs::recursive_directory_iterator it(path, ec), end; it != end; it.increment(ec)) {
+        if (ec) break;
+        if (!it->is_regular_file()) continue;
+        std::string fpath = it->path().string();
+        Language lang = detect_language_from_path(fpath);
+        if (lang == Language::Unknown) continue;
+        if (!language_is_selected(lang, filter)) continue;
+        out.push_back(fpath);
+      }
+    } else if (fs::is_regular_file(path, ec)) {
+      Language lang = detect_language_from_path(p);
+      if (lang != Language::Unknown && language_is_selected(lang, filter)) out.push_back(p);
+    } else {
+      // Ignore non-existing inputs silently
+    }
+  }
+}
+
 int main(int argc, char** argv) {
   CLI_ARGUMENTS cli_args;
   if (argc <= 1) {
@@ -70,7 +103,16 @@ int main(int argc, char** argv) {
   TSParser* parser = ts_parser_new();
   std::string source_code;
 
-  for (std::string& path : cli_args.paths) {
+  // Expand inputs: allow directories and language filtering
+  std::vector<std::string> files;
+  collect_source_files(cli_args.paths, cli_args.languages, files);
+  if (files.empty()) {
+    std::cerr << "No matching source files found" << std::endl;
+    ts_parser_delete(parser);
+    return 1;
+  }
+
+  for (std::string& path : files) {
     Language lang = detect_language_from_path(path);
     switch (lang) {
       case Language::Python:
@@ -94,8 +136,7 @@ int main(int argc, char** argv) {
         break;
       }
       default:
-        std::cerr << "Skipping unsupported language for path: " << path
-                  << std::endl;
+        // Should not happen because we pre-filter files
         continue;
     }
     try {

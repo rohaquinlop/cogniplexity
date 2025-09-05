@@ -39,8 +39,9 @@ Scripted build
 
 ## Usage
 
-Run the CLI with one or more file paths:
-- `./build/cognity src/file.py src/file.cpp src/file.ts`
+Run the CLI with one or more paths (files or directories):
+- `./build/cognity src/file.py src/file.cpp src/file.ts` — files
+- `./build/cognity src/` — recursively scans directory for supported files
 
 Output prints each function and its cognitive complexity. Language is detected by file extension.
 
@@ -52,11 +53,49 @@ CLI options
 - `-s, --sort <asc|desc|name>` — sort order (default name)
 - `-csv, --output-csv` — CSV output
 - `-json, --output-json` — JSON output
+- `-l, --lang <list>` — comma‑separated languages to include when scanning directories or files. Examples: `-l py,js`, `-l typescript`, `-l c,cpp`. Supported: `py|python`, `js|javascript`, `ts|typescript|tsx`, `c`, `cpp|c++|cc|cxx`.
+
+### Language Filtering
+- Purpose: restrict scanning to specific languages when passing files or directories.
+- Format: `-l` or `--lang` followed by a comma‑separated list; the flag can be repeated.
+- Supported tokens: `py|python`, `js|javascript`, `ts|typescript|tsx`, `c`, `cpp|c++|cc|cxx`.
+- Default: if `--lang` is not provided, all supported languages are included.
+
+Examples
+- `./build/cognity src -l py,js` — only Python and JavaScript files in `src`.
+- `./build/cognity src lib -l c,cpp` — scan both paths, only C/C++ files.
+- `./build/cognity project -l typescript` — only TypeScript/TSX files.
+
+Notes
+- Unsupported files are skipped silently.
+- If no files match the filters, the tool prints: `No matching source files found`.
 
 ## Internals
 - General Syntax Graph (GSG): a normalized tree of Function, If/ElseIf/Else, For/While/DoWhile, Switch/Case, Ternary, Try/Except/With (Py), and Expr cost nodes.
 - Builders: small, per‑language mappers from Tree‑sitter ASTs to the GSG.
 - Calculator: a single pass that evaluates cognitive complexity over the GSG.
+
+## Supported Extensions
+
+| Language    | Extensions                 | Status       |
+|-------------|----------------------------|--------------|
+| Python      | .py                        | Supported    |
+| JavaScript  | .js, .mjs, .cjs            | Supported    |
+| TypeScript  | .ts, .tsx                  | Supported    |
+| C           | .c                         | Supported    |
+| C++         | .cpp, .cc, .cxx            | Supported    |
+| Java        | .java                      | Detected only (not computed) |
+
+Note: Java files are detected and skipped (no builder yet).
+
+## Example Output
+
+```
+$ ./build/cognity src -l py,cpp
+name: parse_items - cognitive complexity: 4
+name: utils::format - cognitive complexity: 2
+name: Parser::parse_block - cognitive complexity: 7
+```
 
 ## Troubleshooting
 - Fetching grammars fails: pass `-DCOGNITY_FETCH_GRAMMARS=OFF` and rely on vendored grammars (Python is vendored; others require network).

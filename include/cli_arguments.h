@@ -3,6 +3,7 @@
 
 #include <string>
 #include <vector>
+#include "./gsg.h"
 
 enum DetailType { LOW, NORMAL };
 
@@ -17,6 +18,8 @@ struct CLI_ARGUMENTS {
   SortType sort = NAME;             // --sort -s
   bool output_csv = false;          // --output-csv -csv
   bool output_json = false;         // --output-json -json
+  // Optional filter: if non-empty, only these languages are considered
+  std::vector<Language> languages;
 };
 
 std::vector<std::string> args_to_string(char**, int);

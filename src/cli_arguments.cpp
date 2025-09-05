@@ -1,7 +1,9 @@
 #include <stdexcept>
 #include <string>
+#include <algorithm>
 
 #include "../include/cli_arguments.h"
+#include "../include/gsg.h"
 
 std::vector<std::string> args_to_string(char **args, int total) {
   std::vector<std::string> strings;
@@ -36,9 +38,50 @@ bool is_output_json(std::string &s) {
   return s == "--output-json" or s == "-json";
 }
 
+static bool is_lang(std::string &s) { return s == "--lang" || s == "-l"; }
+
 bool is_argument(std::string &s) {
   return is_max_complexity(s) or is_quiet(s) or is_ignore_complexity(s) or
-         is_detail(s) or is_sort(s) or is_output_csv(s) or is_output_json(s);
+         is_detail(s) or is_sort(s) or is_output_csv(s) or is_output_json(s) ||
+         is_lang(s);
+}
+
+static Language language_from_token(std::string tok) {
+  // normalize
+  std::transform(tok.begin(), tok.end(), tok.begin(), [](unsigned char c){ return std::tolower(c); });
+  if (tok == "py" || tok == "python") return Language::Python;
+  if (tok == "js" || tok == "javascript") return Language::JavaScript;
+  if (tok == "ts" || tok == "typescript") return Language::TypeScript;
+  if (tok == "tsx") return Language::TypeScript;
+  if (tok == "c") return Language::C;
+  if (tok == "cpp" || tok == "c++" || tok == "cc" || tok == "cxx") return Language::Cpp;
+  if (tok == "java") return Language::Java;
+  return Language::Unknown;
+}
+
+static void parse_languages_list(const std::string &value, std::vector<Language> &out) {
+  size_t start = 0;
+  while (start <= value.size()) {
+    size_t comma = value.find(',', start);
+    std::string tok = value.substr(start, comma == std::string::npos ? std::string::npos : (comma - start));
+    // trim spaces
+    auto trim = [](std::string &s){
+      size_t a = s.find_first_not_of(" \t\n");
+      size_t b = s.find_last_not_of(" \t\n");
+      if (a == std::string::npos) { s.clear(); return; }
+      s = s.substr(a, b - a + 1);
+    };
+    trim(tok);
+    if (!tok.empty()) {
+      Language lang = language_from_token(tok);
+      if (lang == Language::Unknown)
+        throw std::invalid_argument("Unknown language in --lang: '" + tok + "'");
+      // Avoid duplicates
+      if (std::find(out.begin(), out.end(), lang) == out.end()) out.push_back(lang);
+    }
+    if (comma == std::string::npos) break;
+    start = comma + 1;
+  }
 }
 
 CLI_ARGUMENTS load_from_vs_arguments(std::vector<std::string> &arguments) {
@@ -52,6 +95,7 @@ CLI_ARGUMENTS load_from_vs_arguments(std::vector<std::string> &arguments) {
   SortType sort = NAME;
   bool output_csv = false;
   bool output_json = false;
+  std::vector<Language> langs_filter;
 
   for (i = 0; i < arguments.size() && reading_paths; i++) {
     if (!is_argument(arguments[i]))
@@ -81,6 +125,11 @@ CLI_ARGUMENTS load_from_vs_arguments(std::vector<std::string> &arguments) {
       quiet = true;
     else if (is_ignore_complexity(arguments[i]))
       ignore_complexity = true;
+    else if (is_lang(arguments[i])) {
+      if (++i >= arguments.size())
+        throw std::invalid_argument("Expected language list after --lang/-l");
+      parse_languages_list(arguments[i], langs_filter);
+    }
     else if (is_detail(arguments[i])) {
       if (++i >= arguments.size())
         throw std::invalid_argument(
@@ -119,5 +168,6 @@ CLI_ARGUMENTS load_from_vs_arguments(std::vector<std::string> &arguments) {
   return CLI_ARGUMENTS{paths,      max_complexity_allowed,
                        quiet,      ignore_complexity,
                        detail,     sort,
-                       output_csv, output_json};
+                       output_csv, output_json,
+                       langs_filter};
 }
