@@ -7,7 +7,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 
-option(COGNITY_FETCH_GRAMMARS "Fetch Tree-sitter grammars from GitHub" ON)
+# Grammars are always fetched from upstream (no vendored copies kept)
 
 # Libraries
 # tree-sitter core (vendored)
@@ -19,6 +19,15 @@ target_include_directories(tree_sitter PUBLIC
 )
 
 include(FetchContent)
+
+# Pinned grammar versions (tags or commit SHAs).
+# To update, edit these values directly.
+set(TS_PYTHON_TAG      "v0.23.0")
+set(TS_JAVASCRIPT_TAG  "v0.23.0")
+set(TS_TYPESCRIPT_TAG  "v0.23.0")
+set(TS_TSX_TAG         "v0.23.0")
+set(TS_C_TAG           "v0.23.0")
+set(TS_CPP_TAG         "v0.23.0")
 
 # Helper to add a Tree-sitter grammar as a static library
 # Usage: ts_add_grammar(<lang> <path-to-grammar-root>)
@@ -45,13 +54,14 @@ function(ts_add_grammar LANG GRAMMAR_DIR)
   target_link_libraries(ts_${LANG} PUBLIC tree_sitter)
 endfunction()
 
-function(ts_fetch_grammar LANG REPO)
+function(ts_fetch_grammar LANG REPO TAG)
   # REPO should be full git URL, e.g. https://github.com/tree-sitter/tree-sitter-python
   string(TOLOWER "${LANG}" LANG_LOWER)
   set(FETCH_NAME ts_${LANG_LOWER}_repo)
   FetchContent_Declare(
     ${FETCH_NAME}
     GIT_REPOSITORY ${REPO}
+    GIT_TAG        ${TAG}
   )
   # Populate only; do not add as a subdirectory to avoid target name clashes
   FetchContent_Populate(${FETCH_NAME})
@@ -59,34 +69,25 @@ function(ts_fetch_grammar LANG REPO)
 endfunction()
 
 # Fetch a grammar from a subdirectory in the repo (e.g., typescript/tsx)
-function(ts_fetch_grammar_subdir LANG REPO SUBDIR)
+function(ts_fetch_grammar_subdir LANG REPO SUBDIR TAG)
   string(TOLOWER "${LANG}" LANG_LOWER)
   set(FETCH_NAME ts_${LANG_LOWER}_repo)
   FetchContent_Declare(
     ${FETCH_NAME}
     GIT_REPOSITORY ${REPO}
+    GIT_TAG        ${TAG}
   )
   FetchContent_Populate(${FETCH_NAME})
   ts_add_grammar(${LANG_LOWER} ${${FETCH_NAME}_SOURCE_DIR}/${SUBDIR})
 endfunction()
 
-if(COGNITY_FETCH_GRAMMARS)
-  ts_fetch_grammar(PYTHON https://github.com/tree-sitter/tree-sitter-python)
-  ts_fetch_grammar(JAVASCRIPT https://github.com/tree-sitter/tree-sitter-javascript)
-  ts_fetch_grammar_subdir(TYPESCRIPT https://github.com/tree-sitter/tree-sitter-typescript typescript)
-  ts_fetch_grammar_subdir(TSX https://github.com/tree-sitter/tree-sitter-typescript tsx)
-  ts_fetch_grammar(C https://github.com/tree-sitter/tree-sitter-c)
-  ts_fetch_grammar(CPP https://github.com/tree-sitter/tree-sitter-cpp)
-else()
-  # Fallback to vendored directories
-  # ts_add_grammar(python ${CMAKE_CURRENT_SOURCE_DIR}/tree-sitter-python)
-  # Uncomment if vendored JS grammar exists
-  # ts_add_grammar(javascript ${CMAKE_CURRENT_SOURCE_DIR}/tree-sitter-javascript)
-  # ts_add_grammar(typescript ${CMAKE_CURRENT_SOURCE_DIR}/tree-sitter-typescript/typescript)
-  # ts_add_grammar(tsx ${CMAKE_CURRENT_SOURCE_DIR}/tree-sitter-typescript/tsx)
-  # ts_add_grammar(c ${CMAKE_CURRENT_SOURCE_DIR}/tree-sitter-c)
-  # ts_add_grammar(cpp ${CMAKE_CURRENT_SOURCE_DIR}/tree-sitter-cpp)
-endif()
+# Always fetch grammars from upstream
+ts_fetch_grammar(PYTHON https://github.com/tree-sitter/tree-sitter-python ${TS_PYTHON_TAG})
+ts_fetch_grammar(JAVASCRIPT https://github.com/tree-sitter/tree-sitter-javascript ${TS_JAVASCRIPT_TAG})
+ts_fetch_grammar_subdir(TYPESCRIPT https://github.com/tree-sitter/tree-sitter-typescript typescript ${TS_TYPESCRIPT_TAG})
+ts_fetch_grammar_subdir(TSX https://github.com/tree-sitter/tree-sitter-typescript tsx ${TS_TSX_TAG})
+ts_fetch_grammar(C https://github.com/tree-sitter/tree-sitter-c ${TS_C_TAG})
+ts_fetch_grammar(CPP https://github.com/tree-sitter/tree-sitter-cpp ${TS_CPP_TAG})
 
 
 # Executable
