@@ -21,6 +21,7 @@
 #include "../include/cognitive_complexity.h"
 #include "../include/file_operations.h"
 #include "../include/gsg.h"
+#include "../include/gitignore.h"
 #include "../tree-sitter/lib/include/tree_sitter/api.h"
 
 extern "C" {
@@ -182,6 +183,53 @@ static bool language_is_selected(Language lang,
   return false;
 }
 
+static void collect_dir_with_gitignore(const std::filesystem::path &dir,
+                                       const std::vector<Language> &filter,
+                                       std::vector<std::string> &out,
+                                       std::vector<ignore::RulesFile> &stack) {
+  namespace fs = std::filesystem;
+  // Load .gitignore for this directory, if any
+  auto rf = ignore::load_rules_for_dir(dir);
+  bool pushed = !rf.rules.empty();
+  if (pushed) stack.push_back(std::move(rf));
+
+  std::error_code ec;
+  for (fs::directory_iterator it(dir, ec), end; it != end; it.increment(ec)) {
+    if (ec) break;
+    const fs::directory_entry &ent = *it;
+    fs::path p = ent.path();
+    bool is_dir = ent.is_directory(ec);
+    if (ec) is_dir = false;
+    bool is_reg = ent.is_regular_file(ec);
+    if (ec) is_reg = false;
+
+    // Skip the .git directory itself regardless
+    if (is_dir && p.filename() == ".git") continue;
+
+    if (ignore::is_ignored(stack, p, is_dir)) {
+      // If directory is ignored, do not recurse
+      if (is_dir) continue;
+      // If file is ignored, skip
+      if (is_reg) continue;
+    }
+
+    if (is_dir) {
+      collect_dir_with_gitignore(p, filter, out, stack);
+      continue;
+    }
+
+    if (is_reg) {
+      std::string fpath = p.string();
+      Language lang = detect_language_from_path(fpath);
+      if (lang == Language::Unknown) continue;
+      if (!language_is_selected(lang, filter)) continue;
+      out.push_back(fpath);
+    }
+  }
+
+  if (pushed) stack.pop_back();
+}
+
 static void collect_source_files(const std::vector<std::string> &inputs,
                                  const std::vector<Language> &filter,
                                  std::vector<std::string> &out) {
@@ -190,16 +238,8 @@ static void collect_source_files(const std::vector<std::string> &inputs,
     fs::path path(p);
     std::error_code ec;
     if (fs::is_directory(path, ec)) {
-      for (fs::recursive_directory_iterator it(path, ec), end; it != end;
-           it.increment(ec)) {
-        if (ec) break;
-        if (!it->is_regular_file()) continue;
-        std::string fpath = it->path().string();
-        Language lang = detect_language_from_path(fpath);
-        if (lang == Language::Unknown) continue;
-        if (!language_is_selected(lang, filter)) continue;
-        out.push_back(fpath);
-      }
+      std::vector<ignore::RulesFile> stack;
+      collect_dir_with_gitignore(path, filter, out, stack);
     } else if (fs::is_regular_file(path, ec)) {
       Language lang = detect_language_from_path(p);
       if (lang != Language::Unknown && language_is_selected(lang, filter))

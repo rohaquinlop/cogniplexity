@@ -99,6 +99,7 @@ set(SOURCES
   "${CMAKE_CURRENT_SOURCE_DIR}/src/builders/python_gsg_builder.cpp"
   "${CMAKE_CURRENT_SOURCE_DIR}/src/builders/javascript_gsg_builder.cpp"
   "${CMAKE_CURRENT_SOURCE_DIR}/src/builders/c_gsg_builder.cpp"
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/gitignore.cpp"
 )
 
 add_executable(cognity ${SOURCES})

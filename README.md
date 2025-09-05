@@ -59,6 +59,7 @@ Key options
 Notes
 - Unsupported files are skipped.
 - If filters match nothing, you’ll see: `No matching source files found`.
+- Directory scans respect `.gitignore` files (ignored files and folders are skipped).
 
 ## How it works
 
