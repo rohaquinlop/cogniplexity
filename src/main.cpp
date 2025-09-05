@@ -19,9 +19,10 @@
 
 #include "../include/cli_arguments.h"
 #include "../include/cognitive_complexity.h"
+#include "../include/config.h"
 #include "../include/file_operations.h"
-#include "../include/gsg.h"
 #include "../include/gitignore.h"
+#include "../include/gsg.h"
 #include "../tree-sitter/lib/include/tree_sitter/api.h"
 
 extern "C" {
@@ -251,19 +252,14 @@ static void collect_source_files(const std::vector<std::string> &inputs,
 }
 
 int main(int argc, char **argv) {
-  CLI_ARGUMENTS cli_args;
-  if (argc <= 1) {
-    term::Painter p;
-    p.init(false, false);
-    p.print(std::cerr, term::Style::red, "Error: expected at least one path",
-            true);
-    std::cerr << std::endl;
-    return 1;
-  }
-  std::vector<std::string> args = args_to_string(argv, argc);
+  // Read config if present
+  LoadedConfig file_cfg = load_cognity_toml("cognity.toml");
 
+  // Parse CLI in relaxed mode to support config-only usage
+  std::vector<std::string> args = args_to_string(argv, argc);
+  CLI_PARSE_RESULT parsed;
   try {
-    cli_args = load_from_vs_arguments(args);
+    parsed = parse_arguments_relaxed(args);
   } catch (const std::invalid_argument &e) {
     term::Painter p;
     p.init(false, false);
@@ -273,7 +269,8 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  if (cli_args.show_help) {
+  // If help requested, show help regardless of config
+  if (parsed.has_help && parsed.args.show_help) {
     std::cout
         << "Usage: cognity <paths...> [options]\n"
            "\n"
@@ -294,8 +291,59 @@ int main(int argc, char **argv) {
            "  -h,  --help                   Show this help and exit\n"
            "\n"
            "Note: place options after paths; directories are scanned "
-           "recursively.\n";
+           "recursively.\n"
+           "\n"
+           "Also supports a cognity.toml file in the working directory\n"
+           "to provide default values for the same options. CLI options\n"
+           "override the config file.\n";
     return 0;
+  }
+
+  // Merge config + CLI (CLI overrides)
+  CLI_ARGUMENTS cli_args;  // start with defaults
+  if (file_cfg.loaded) {
+    if (file_cfg.present.max_complexity)
+      cli_args.max_complexity_allowed = file_cfg.args.max_complexity_allowed;
+    if (file_cfg.present.quiet) cli_args.quiet = file_cfg.args.quiet;
+    if (file_cfg.present.ignore_complexity)
+      cli_args.ignore_complexity = file_cfg.args.ignore_complexity;
+    if (file_cfg.present.detail) cli_args.detail = file_cfg.args.detail;
+    if (file_cfg.present.sort) cli_args.sort = file_cfg.args.sort;
+    if (file_cfg.present.output_csv)
+      cli_args.output_csv = file_cfg.args.output_csv;
+    if (file_cfg.present.output_json)
+      cli_args.output_json = file_cfg.args.output_json;
+    if (file_cfg.present.max_fn_width)
+      cli_args.max_function_width = file_cfg.args.max_function_width;
+    if (file_cfg.present.languages)
+      cli_args.languages = file_cfg.args.languages;
+    if (file_cfg.present.paths) cli_args.paths = file_cfg.args.paths;
+  }
+
+  // Apply CLI overrides where present
+  if (parsed.has_max_complexity)
+    cli_args.max_complexity_allowed = parsed.args.max_complexity_allowed;
+  if (parsed.has_quiet) cli_args.quiet = parsed.args.quiet;
+  if (parsed.has_ignore_complexity)
+    cli_args.ignore_complexity = parsed.args.ignore_complexity;
+  if (parsed.has_detail) cli_args.detail = parsed.args.detail;
+  if (parsed.has_sort) cli_args.sort = parsed.args.sort;
+  if (parsed.has_output_csv) cli_args.output_csv = parsed.args.output_csv;
+  if (parsed.has_output_json) cli_args.output_json = parsed.args.output_json;
+  if (parsed.has_max_fn_width)
+    cli_args.max_function_width = parsed.args.max_function_width;
+  if (parsed.has_lang) cli_args.languages = parsed.args.languages;
+  if (parsed.has_paths) cli_args.paths = parsed.args.paths;
+
+  // Validate paths availability
+  if (cli_args.paths.empty()) {
+    term::Painter p;
+    p.init(false, false);
+    p.print(std::cerr, term::Style::red,
+            "Error: expected at least one path (via CLI or cognity.toml)",
+            true);
+    std::cerr << std::endl;
+    return 1;
   }
 
   TSParser *parser = ts_parser_new();

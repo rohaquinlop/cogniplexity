@@ -30,4 +30,21 @@ struct CLI_ARGUMENTS {
 std::vector<std::string> args_to_string(char**, int);
 CLI_ARGUMENTS load_from_vs_arguments(std::vector<std::string>&);
 
+struct CLI_PARSE_RESULT {
+  CLI_ARGUMENTS args;
+  bool has_paths = false;
+  bool has_max_complexity = false;
+  bool has_quiet = false;
+  bool has_ignore_complexity = false;
+  bool has_detail = false;
+  bool has_sort = false;
+  bool has_output_csv = false;
+  bool has_output_json = false;
+  bool has_max_fn_width = false;
+  bool has_lang = false;
+  bool has_help = false;
+};
+
+CLI_PARSE_RESULT parse_arguments_relaxed(std::vector<std::string>&);
+
 #endif

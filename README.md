@@ -61,6 +61,45 @@ Notes
 - If filters match nothing, you’ll see: `No matching source files found`.
 - Directory scans respect `.gitignore` files (ignored files and folders are skipped).
 
+## Config (cognity.toml)
+
+You can place a `cognity.toml` file in your working directory to provide defaults for the same options as the CLI. Any CLI option overrides the config file.
+
+Supported keys (top‑level):
+- `paths`: array or comma‑separated string, e.g. `["src", "lib"]` or "src,lib".
+- `max_complexity` or `max_complexity_allowed`: integer.
+- `quiet`: boolean.
+- `ignore_complexity`: boolean.
+- `detail`: "low" | "normal".
+- `sort`: "asc" | "desc" | "name".
+- `output_csv`: boolean.
+- `output_json`: boolean.
+- `max_fn_width` or `max_function_width`: integer.
+- `lang` or `languages`: array or comma‑separated string, e.g. `["py", "js"]` or "py,js".
+
+Example `cognity.toml`:
+```
+# Default scan targets
+paths = ["src", "include"]
+
+# Output and formatting
+detail = "normal"
+sort = "name"
+quiet = false
+output_json = false
+output_csv = false
+max_fn_width = 40
+
+# Threshold behavior
+max_complexity = 15
+ignore_complexity = false
+
+# Language filter
+languages = ["py", "js", "ts", "c", "cpp"]
+```
+
+If neither CLI nor `cognity.toml` provides any `paths`, Cognity errors with: "expected at least one path".
+
 ## How it works
 
 - General Syntax Graph (GSG): normalized nodes for functions, if/else, loops, switch/case, ternary, try/except/with (Py), and boolean‑cost expressions.

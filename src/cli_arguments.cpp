@@ -219,3 +219,124 @@ CLI_ARGUMENTS load_from_vs_arguments(std::vector<std::string> &arguments) {
                        show_help,
                        langs_filter};
 }
+
+// Relaxed parsing that does not require at least one path and records presence
+// of each option to support merging with config file values.
+CLI_PARSE_RESULT parse_arguments_relaxed(std::vector<std::string> &arguments) {
+  CLI_PARSE_RESULT res;
+  int i;
+  bool reading_paths = true;
+  std::vector<std::string> paths;
+  int max_complexity_allowed = 15;
+  bool quiet = false;
+  bool ignore_complexity = false;
+  DetailType detail = NORMAL;
+  SortType sort = NAME;
+  bool output_csv = false;
+  bool output_json = false;
+  std::vector<Language> langs_filter;
+  int max_function_width = 0;
+  bool show_help = false;
+
+  for (i = 0; i < arguments.size() && reading_paths; i++) {
+    if (!is_argument(arguments[i]))
+      paths.push_back(arguments[i]);
+    else {
+      reading_paths = false;
+      i--;
+    }
+  }
+  if (!paths.empty()) res.has_paths = true;
+
+  for (i = i; i < arguments.size(); i++) {
+    if (is_max_complexity(arguments[i])) {
+      if (++i >= arguments.size())
+        throw std::invalid_argument(
+            "Expected max cognitive complexity allowed, use '-mx $number'");
+      try {
+        max_complexity_allowed = std::stoi(arguments[i]);
+        if (max_complexity_allowed < 0) max_complexity_allowed = 0;
+        res.has_max_complexity = true;
+      } catch (const std::invalid_argument &e) {
+        throw std::invalid_argument(
+            "Expected a number as max complexity allowed");
+      } catch (const std::out_of_range &e) {
+        throw std::invalid_argument(
+            "Expected a number as max complexity allowed");
+      }
+    } else if (is_quiet(arguments[i])) {
+      quiet = true;
+      res.has_quiet = true;
+    } else if (is_ignore_complexity(arguments[i])) {
+      ignore_complexity = true;
+      res.has_ignore_complexity = true;
+    } else if (is_help(arguments[i])) {
+      show_help = true;
+      res.has_help = true;
+    } else if (is_lang(arguments[i])) {
+      if (++i >= arguments.size())
+        throw std::invalid_argument("Expected language list after --lang/-l");
+      parse_languages_list(arguments[i], langs_filter);
+      res.has_lang = true;
+    } else if (is_max_fn_width(arguments[i])) {
+      if (++i >= arguments.size())
+        throw std::invalid_argument("Expected number after --max-fn-width/-fw");
+      try {
+        max_function_width = std::stoi(arguments[i]);
+        if (max_function_width < 0) max_function_width = 0;
+        res.has_max_fn_width = true;
+      } catch (const std::invalid_argument &e) {
+        throw std::invalid_argument(
+            "Expected a number after --max-fn-width/-fw");
+      }
+    } else if (is_detail(arguments[i])) {
+      if (++i >= arguments.size())
+        throw std::invalid_argument(
+            "Expected detail level, use '-d low' or '-d normal'");
+      if (arguments[i] == "low")
+        detail = LOW;
+      else if (arguments[i] == "normal")
+        detail = NORMAL;
+      else
+        throw std::invalid_argument(
+            "Invalid detail level, use 'low' or 'normal'");
+      res.has_detail = true;
+    } else if (is_sort(arguments[i])) {
+      if (++i >= arguments.size())
+        throw std::invalid_argument(
+            "Expected sort order, use '-s asc' '-s desc' '-s name'");
+      if (arguments[i] == "asc")
+        sort = ASC;
+      else if (arguments[i] == "desc")
+        sort = DESC;
+      else if (arguments[i] == "name")
+        sort = NAME;
+      else
+        throw std::invalid_argument(
+            "Invalid sort order, use '-s asc' '-s desc' '-s name'");
+      res.has_sort = true;
+    } else if (is_output_csv(arguments[i])) {
+      output_csv = true;
+      res.has_output_csv = true;
+    } else if (is_output_json(arguments[i])) {
+      output_json = true;
+      res.has_output_json = true;
+    } else {
+      throw std::invalid_argument("Invalid argument: '" + arguments[i] +
+                                  "' on call, use the valid arguments");
+    }
+  }
+
+  res.args = CLI_ARGUMENTS{paths,
+                           max_complexity_allowed,
+                           quiet,
+                           ignore_complexity,
+                           detail,
+                           sort,
+                           output_csv,
+                           output_json,
+                           max_function_width,
+                           show_help,
+                           langs_filter};
+  return res;
+}

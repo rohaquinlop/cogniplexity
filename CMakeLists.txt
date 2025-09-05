@@ -94,6 +94,7 @@ ts_fetch_grammar(CPP https://github.com/tree-sitter/tree-sitter-cpp ${TS_CPP_TAG
 set(SOURCES
   "${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp"
   "${CMAKE_CURRENT_SOURCE_DIR}/src/cli_arguments.cpp"
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/config.cpp"
   "${CMAKE_CURRENT_SOURCE_DIR}/src/file_operations.cpp"
   "${CMAKE_CURRENT_SOURCE_DIR}/src/cognitive_complexity.cpp"
   "${CMAKE_CURRENT_SOURCE_DIR}/src/builders/python_gsg_builder.cpp"
