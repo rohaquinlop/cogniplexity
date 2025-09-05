@@ -1,9 +1,21 @@
 #include <algorithm>
+#include <cstdlib>
 #include <filesystem>
 #include <iomanip>
 #include <iostream>
 #include <stdexcept>
 #include <vector>
+
+#ifdef _WIN32
+#include <io.h>
+#include <windows.h>
+#define ISATTY _isatty
+#define FILENO _fileno
+#else
+#include <unistd.h>
+#define ISATTY isatty
+#define FILENO fileno
+#endif
 
 #include "../include/cli_arguments.h"
 #include "../include/cognitive_complexity.h"
@@ -17,6 +29,113 @@ const TSLanguage *tree_sitter_javascript();
 const TSLanguage *tree_sitter_typescript();
 const TSLanguage *tree_sitter_tsx();
 }
+
+// Simple cross-platform console color helper using ANSI codes.
+// On Windows, attempts to enable Virtual Terminal Processing; if not available,
+// colors are disabled (fallback to plain text).
+namespace term {
+enum class Style { reset, bold, dim, red, green, yellow, blue, magenta, cyan };
+
+struct ColorConfig {
+  bool ansi_enabled_stdout = false;
+  bool ansi_enabled_stderr = false;
+};
+
+static inline bool env_no_color() {
+  const char *v = std::getenv("NO_COLOR");
+  return v != nullptr;  // https://no-color.org/
+}
+
+static inline void enable_win_vt_if_possible(ColorConfig &cfg, bool for_stdout,
+                                             bool for_stderr) {
+#ifdef _WIN32
+  auto try_enable = [](DWORD handle_id) -> bool {
+    HANDLE h = GetStdHandle(handle_id);
+    if (h == INVALID_HANDLE_VALUE || h == NULL) return false;
+    DWORD mode = 0;
+    if (!GetConsoleMode(h, &mode)) return false;
+    if (mode & ENABLE_VIRTUAL_TERMINAL_PROCESSING) return true;
+    DWORD new_mode = mode | ENABLE_VIRTUAL_TERMINAL_PROCESSING;
+    return SetConsoleMode(h, new_mode) != 0;
+  };
+  if (for_stdout) cfg.ansi_enabled_stdout = try_enable(STD_OUTPUT_HANDLE);
+  if (for_stderr) cfg.ansi_enabled_stderr = try_enable(STD_ERROR_HANDLE);
+#else
+  (void)cfg;
+  (void)for_stdout;
+  (void)for_stderr;
+#endif
+}
+
+static inline bool stream_supports_color(std::ostream &os, bool is_stderr,
+                                         const ColorConfig &cfg) {
+  if (env_no_color()) return false;
+  FILE *f = is_stderr ? stderr : stdout;
+  if (!ISATTY(FILENO(f))) return false;
+#ifdef _WIN32
+  // Use VT only if we enabled it; otherwise avoid raw escape codes
+  return is_stderr ? cfg.ansi_enabled_stderr : cfg.ansi_enabled_stdout;
+#else
+  (void)os;
+  return true;  // TTY on POSIX supports ANSI by default
+#endif
+}
+
+static inline const char *code(Style s) {
+  switch (s) {
+    case Style::reset:
+      return "\x1b[0m";
+    case Style::bold:
+      return "\x1b[1m";
+    case Style::dim:
+      return "\x1b[2m";
+    case Style::red:
+      return "\x1b[31m";
+    case Style::green:
+      return "\x1b[32m";
+    case Style::yellow:
+      return "\x1b[33m";
+    case Style::blue:
+      return "\x1b[34m";
+    case Style::magenta:
+      return "\x1b[35m";
+    case Style::cyan:
+      return "\x1b[36m";
+  }
+  return "";
+}
+
+struct Painter {
+  ColorConfig cfg;
+  bool out_enabled = false;
+  bool err_enabled = false;
+
+  void init(bool json_mode, bool csv_mode) {
+    // If machine-readable outputs, disable colors regardless.
+    if (json_mode || csv_mode) {
+      out_enabled = false;
+      err_enabled = false;
+      return;
+    }
+
+    // Try enabling VT on Windows; on POSIX this is a no-op.
+    enable_win_vt_if_possible(cfg, true, true);
+    out_enabled = stream_supports_color(std::cout, false, cfg);
+    err_enabled = stream_supports_color(std::cerr, true, cfg);
+  }
+
+  template <typename T>
+  void print(std::ostream &os, Style style, const T &text,
+             bool is_err = false) {
+    bool enabled = is_err ? err_enabled : out_enabled;
+    if (enabled) {
+      os << code(style) << text << code(Style::reset);
+    } else {
+      os << text;
+    }
+  }
+};
+}  // namespace term
 
 void parse_python() {
   TSParser *parser = ts_parser_new();
@@ -94,7 +213,11 @@ static void collect_source_files(const std::vector<std::string> &inputs,
 int main(int argc, char **argv) {
   CLI_ARGUMENTS cli_args;
   if (argc <= 1) {
-    std::cerr << "Error: expected at least one path" << std::endl;
+    term::Painter p;
+    p.init(false, false);
+    p.print(std::cerr, term::Style::red, "Error: expected at least one path",
+            true);
+    std::cerr << std::endl;
     return 1;
   }
   std::vector<std::string> args = args_to_string(argv, argc);
@@ -102,7 +225,11 @@ int main(int argc, char **argv) {
   try {
     cli_args = load_from_vs_arguments(args);
   } catch (const std::invalid_argument &e) {
-    std::cerr << "Error: " << e.what() << std::endl;
+    term::Painter p;
+    p.init(false, false);
+    p.print(std::cerr, term::Style::red, std::string("Error: ") + e.what(),
+            true);
+    std::cerr << std::endl;
     return 1;
   }
 
@@ -138,7 +265,11 @@ int main(int argc, char **argv) {
   std::vector<std::string> files;
   collect_source_files(cli_args.paths, cli_args.languages, files);
   if (files.empty()) {
-    std::cerr << "No matching source files found" << std::endl;
+    term::Painter p;
+    p.init(false, false);
+    p.print(std::cerr, term::Style::red, "No matching source files found",
+            true);
+    std::cerr << std::endl;
     ts_parser_delete(parser);
     return 1;
   }
@@ -180,7 +311,11 @@ int main(int argc, char **argv) {
     try {
       source_code = load_file_content(path);
     } catch (const std::runtime_error &e) {
-      std::cerr << "Error: " << e.what() << std::endl;
+      term::Painter p;
+      p.init(false, false);
+      p.print(std::cerr, term::Style::red, std::string("Error: ") + e.what(),
+              true);
+      std::cerr << std::endl;
       return 1;
     }
 
@@ -219,6 +354,17 @@ int main(int argc, char **argv) {
     }
   }
 
+  // Determine if any function exceeds the threshold (for exit status)
+  bool any_exceeds = false;
+  if (!cli_args.ignore_complexity) {
+    for (const auto &r : all_rows) {
+      if (r.fn.complexity > (unsigned)cli_args.max_complexity_allowed) {
+        any_exceeds = true;
+        break;
+      }
+    }
+  }
+
   // Handle JSON/CSV outputs first (take precedence over text)
   if (cli_args.output_json) {
     std::cout << "[";
@@ -234,7 +380,7 @@ int main(int argc, char **argv) {
     if (!all_rows.empty()) std::cout << "\n";
     std::cout << "]" << std::endl;
     ts_parser_delete(parser);
-    return 0;
+    return any_exceeds ? 2 : 0;
   }
 
   if (cli_args.output_csv) {
@@ -244,7 +390,7 @@ int main(int argc, char **argv) {
                 << r.fn.complexity << "," << r.fn.row + 1 << std::endl;
     }
     ts_parser_delete(parser);
-    return 0;
+    return any_exceeds ? 2 : 0;
   }
 
   // If quiet and not ignoring complexity, only keep offenders
@@ -276,6 +422,12 @@ int main(int argc, char **argv) {
   std::size_t i = 0;
   const std::string cc_header = "cognitive complexity";
   while (i < all_rows.size()) {
+    static term::Painter painter;
+    static bool painter_initialized = false;
+    if (!painter_initialized) {
+      painter.init(false, false);
+      painter_initialized = true;
+    }
     const std::string current_file = all_rows[i].file;
 
     // Determine the range [i, j) for this file
@@ -300,20 +452,17 @@ int main(int argc, char **argv) {
           std::max(8, std::min(max_fn_width, cli_args.max_function_width));
     }
 
-    // Print file header
     if (i) std::cout << "\n";
-    std::cout << current_file << std::endl;
-    // Column headers, aligned to computed widths (Line merged into Function via
-    // @line)
+    painter.print(std::cout, term::Style::cyan, current_file);
+    std::cout << std::endl;
+    if (painter.out_enabled) std::cout << term::code(term::Style::bold);
     std::cout << "  " << std::left << std::setw(max_fn_width) << "Function"
-              << std::left << "  " << std::setw(max_cc_width) << cc_header
-              << std::endl;
+              << std::left << "  " << std::setw(max_cc_width) << cc_header;
+    if (painter.out_enabled) std::cout << term::code(term::Style::reset);
+    std::cout << std::endl;
 
-    // Print rows for this file
     for (std::size_t k = i; k < j; ++k) {
       const auto &r = all_rows[k];
-      // Build display name as "name@line" and possibly truncate while
-      // preserving suffix
       std::string suffix = "@" + std::to_string(r.fn.row + 1);
       std::string base = r.fn.name;
       std::string fn_name = base + suffix;
@@ -325,23 +474,35 @@ int main(int argc, char **argv) {
         } else if (avail > 0) {
           fn_name = base.substr(0, static_cast<size_t>(avail)) + suffix;
         } else {
-          // Not enough space for base; fall back to right-truncating suffix
-          // itself
           fn_name = suffix.size() > static_cast<size_t>(max_fn_width)
                         ? suffix.substr(0, static_cast<size_t>(max_fn_width))
                         : suffix;
         }
       }
 
-      std::cout
-          << "  " << std::left << std::setw(max_fn_width) << fn_name
-          << std::left << "  " << std::setw(max_cc_width) << r.fn.complexity
-          << ((!cli_args.ignore_complexity &&
-               r.fn.complexity > (unsigned)cli_args.max_complexity_allowed)
-                  ? "  (exceeds " +
-                        std::to_string(cli_args.max_complexity_allowed) + ")"
-                  : "")
-          << std::endl;
+      std::cout << "  " << std::left << std::setw(max_fn_width) << fn_name
+                << std::left << "  ";
+      bool exceeds =
+          r.fn.complexity > (unsigned)cli_args.max_complexity_allowed;
+      if (painter.out_enabled) {
+        std::cout << term::code(exceeds ? term::Style::red : term::Style::green)
+                  << std::setw(max_cc_width) << r.fn.complexity
+                  << term::code(term::Style::reset);
+      } else {
+        std::cout << std::setw(max_cc_width) << r.fn.complexity;
+      }
+      if ((!cli_args.ignore_complexity) && exceeds) {
+        std::string note = "  (exceeds " +
+                           std::to_string(cli_args.max_complexity_allowed) +
+                           ")";
+        if (painter.out_enabled) {
+          std::cout << term::code(term::Style::red) << note
+                    << term::code(term::Style::reset);
+        } else {
+          std::cout << note;
+        }
+      }
+      std::cout << std::endl;
     }
 
     i = j;
@@ -349,5 +510,5 @@ int main(int argc, char **argv) {
 
   ts_parser_delete(parser);
 
-  return 0;
+  return any_exceeds ? 2 : 0;
 }

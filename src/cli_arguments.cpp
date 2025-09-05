@@ -144,7 +144,11 @@ CLI_ARGUMENTS load_from_vs_arguments(std::vector<std::string> &arguments) {
 
       try {
         max_complexity_allowed = std::stoi(arguments[i]);
+        if (max_complexity_allowed < 0) max_complexity_allowed = 0;
       } catch (const std::invalid_argument &e) {
+        throw std::invalid_argument(
+            "Expected a number as max complexity allowed");
+      } catch (const std::out_of_range &e) {
         throw std::invalid_argument(
             "Expected a number as max complexity allowed");
       }
