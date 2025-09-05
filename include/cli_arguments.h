@@ -1,6 +1,7 @@
 #ifndef CLI_ARGUMENTS_H
 #define CLI_ARGUMENTS_H
 
+#include <string>
 #include <vector>
 
 enum DetailType { LOW, NORMAL };
