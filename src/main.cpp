@@ -244,7 +244,9 @@ int main(int argc, char** argv) {
 
     // Determine the range [i, j) for this file
     std::size_t j = i;
-    int max_cc_width = 2;       // at least length of "CC"
+    // Column widths (ensure minimums based on header labels)
+    const std::string cc_header = "cognitive complexity";
+    int max_cc_width = static_cast<int>(cc_header.size());
     int max_fn_width = 8;       // at least length of "Function"
     while (j < all_rows.size() && all_rows[j].file == current_file) {
       const auto &fn = all_rows[j].fn;
@@ -265,8 +267,8 @@ int main(int argc, char** argv) {
     std::cout << current_file << std::endl;
     // Column headers, aligned to computed widths (Line merged into Function via @line)
     std::cout << "  "
-              << std::setw(max_cc_width) << "CC" << "  "
-              << std::left << std::setw(max_fn_width) << "Function" << std::right
+              << std::left << std::setw(max_fn_width) << "Function" << std::right << "  "
+              << std::setw(max_cc_width) << cc_header
               << std::endl;
 
     // Print rows for this file
@@ -291,8 +293,8 @@ int main(int argc, char** argv) {
       }
 
       std::cout << "  "
-                << std::setw(max_cc_width) << r.fn.complexity << "  "
-                << std::left << std::setw(max_fn_width) << fn_name << std::right
+                << std::left << std::setw(max_fn_width) << fn_name << std::right << "  "
+                << std::setw(max_cc_width) << r.fn.complexity
                 << (( !cli_args.ignore_complexity && r.fn.complexity > (unsigned)cli_args.max_complexity_allowed) ? "  (exceeds " + std::to_string(cli_args.max_complexity_allowed) + ")" : "")
                 << std::endl;
     }

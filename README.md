@@ -97,13 +97,13 @@ Note: Java files are detected and skipped (no builder yet).
 ```
 $ ./build/cognity src -l py,cpp
 src/parser.py
-  CC  Function
-   4  parse_items@12
-   7  parse_block@58
+  Function           cognitive complexity
+  parse_items@12     4
+  parse_block@58     7
 
 src/utils.cpp
-  CC  Function
-   2  utils::format@23
+  Function           cognitive complexity
+  utils::format@23   2
 ```
 
 ## Troubleshooting
