@@ -1,14 +1,15 @@
 #include <string>
 #include <string_view>
 #include <vector>
-#include <iostream>
 
 #include "../../include/builders/python_gsg_builder.h"
 
 using std::string;
 using std::string_view;
 
-static inline string node_type(TSNode n) { return string(ts_node_grammar_type(n)); }
+static inline string node_type(TSNode n) {
+  return string(ts_node_grammar_type(n));
+}
 
 SourceLoc PythonGSGBuilder::loc_from_node(TSNode node) {
   TSPoint p = ts_node_start_point(node), q = ts_node_end_point(node);
@@ -21,7 +22,8 @@ string_view PythonGSGBuilder::slice_source(const string &source, TSNode node) {
   return string_view(source).substr(a, b - a);
 }
 
-string_view PythonGSGBuilder::get_identifier(TSNode node, const string &source) {
+string_view PythonGSGBuilder::get_identifier(TSNode node,
+                                             const string &source) {
   TSNode name = ts_node_child_by_field_name(node, "name", 4);
   return slice_source(source, name);
 }
@@ -65,7 +67,8 @@ unsigned int PythonGSGBuilder::count_bool_operators(TSNode node,
     BoolOp right_bool = get_boolean_op_for_node(right, source);
 
     if (left_bool != BoolOp::Unknown && current_bool != left_bool) complexity++;
-    if (right_bool != BoolOp::Unknown && current_bool != right_bool) complexity++;
+    if (right_bool != BoolOp::Unknown && current_bool != right_bool)
+      complexity++;
 
     complexity += count_bool_operators(left, source);
     complexity += count_bool_operators(right, source);
@@ -95,13 +98,16 @@ unsigned int PythonGSGBuilder::count_bool_ops_expr(TSNode node, int nesting,
   if (t == "comparison_operator") {
     unsigned int total = 0;
     int m = ts_node_named_child_count(node);
-    for (int i = 0; i < m; ++i) total += count_bool_ops_expr(ts_node_named_child(node, i), nesting, source);
+    for (int i = 0; i < m; ++i)
+      total +=
+          count_bool_ops_expr(ts_node_named_child(node, i), nesting, source);
     return total;
   }
   // Default: recurse into named children to find nested constructs
   unsigned int total = 0;
   int m = ts_node_named_child_count(node);
-  for (int i = 0; i < m; ++i) total += count_bool_ops_expr(ts_node_named_child(node, i), nesting, source);
+  for (int i = 0; i < m; ++i)
+    total += count_bool_ops_expr(ts_node_named_child(node, i), nesting, source);
   return total;
 }
 
@@ -144,7 +150,8 @@ GSGNode PythonGSGBuilder::build_function(TSNode node, const string &source) {
 }
 
 void PythonGSGBuilder::build_block_children(TSNode block, const string &source,
-                                            std::vector<GSGNode> &out, int nesting) {
+                                            std::vector<GSGNode> &out,
+                                            int nesting) {
   int n = ts_node_named_child_count(block);
   for (int i = 0; i < n; ++i) {
     TSNode stmt = ts_node_named_child(block, i);
@@ -164,38 +171,50 @@ void PythonGSGBuilder::build_block_children(TSNode block, const string &source,
         TSNode ch = ts_node_named_child(stmt, k);
         if (node_type(ch) == "case_clause") {
           TSNode cbody = ts_node_child_by_field_name(ch, "body", 4);
-          if (!ts_node_is_null(cbody)) build_block_children(cbody, source, out, nesting + 1);
+          if (!ts_node_is_null(cbody))
+            build_block_children(cbody, source, out, nesting + 1);
         }
       }
     } else if (t == "try_statement") {
       // body
       TSNode body = ts_node_child_by_field_name(stmt, "body", 4);
-      if (!ts_node_is_null(body)) build_block_children(body, source, out, nesting + 1);
+      if (!ts_node_is_null(body))
+        build_block_children(body, source, out, nesting + 1);
       // handlers
       int m = ts_node_named_child_count(stmt);
       for (int j = 0; j < m; ++j) {
         TSNode ch = ts_node_named_child(stmt, j);
         if (node_type(ch) == "except_clause") {
-          GSGNode ex; ex.kind = GSGNodeKind::Except; ex.loc = loc_from_node(ch); ex.addl_cost = 1;
+          GSGNode ex;
+          ex.kind = GSGNodeKind::Except;
+          ex.loc = loc_from_node(ch);
+          ex.addl_cost = 1;
           TSNode exbody = ts_node_child_by_field_name(ch, "body", 4);
-          if (!ts_node_is_null(exbody)) build_block_children(exbody, source, ex.children, nesting + 1);
+          if (!ts_node_is_null(exbody))
+            build_block_children(exbody, source, ex.children, nesting + 1);
           out.emplace_back(std::move(ex));
         }
       }
       // else and finally
       TSNode orelse = ts_node_child_by_field_name(stmt, "alternative", 11);
-      if (!ts_node_is_null(orelse)) build_block_children(orelse, source, out, nesting + 1);
+      if (!ts_node_is_null(orelse))
+        build_block_children(orelse, source, out, nesting + 1);
       TSNode finalizer = ts_node_child_by_field_name(stmt, "finalizer", 9);
-      if (!ts_node_is_null(finalizer)) build_block_children(finalizer, source, out, nesting + 1);
+      if (!ts_node_is_null(finalizer))
+        build_block_children(finalizer, source, out, nesting + 1);
     } else if (t == "return_statement") {
       TSNode value = ts_node_named_child(stmt, 0);
       if (!ts_node_is_null(value) && node_type(value) == "expression") {
-        GSGNode e; e.kind = GSGNodeKind::Expr; e.loc = loc_from_node(stmt);
+        GSGNode e;
+        e.kind = GSGNodeKind::Expr;
+        e.loc = loc_from_node(stmt);
         e.addl_cost = count_bool_ops_expr(value, nesting, source);
         out.emplace_back(std::move(e));
       }
     } else if (t == "raise_statement") {
-      GSGNode e; e.kind = GSGNodeKind::Expr; e.loc = loc_from_node(stmt);
+      GSGNode e;
+      e.kind = GSGNodeKind::Expr;
+      e.loc = loc_from_node(stmt);
       unsigned int rc = 0;
       int m = ts_node_named_child_count(stmt);
       for (int j = 0; j < m; ++j) {
@@ -205,7 +224,9 @@ void PythonGSGBuilder::build_block_children(TSNode block, const string &source,
       e.addl_cost = rc;
       out.emplace_back(std::move(e));
     } else if (t == "assert_statement") {
-      GSGNode e; e.kind = GSGNodeKind::Expr; e.loc = loc_from_node(stmt);
+      GSGNode e;
+      e.kind = GSGNodeKind::Expr;
+      e.loc = loc_from_node(stmt);
       unsigned int ac = 0;
       int m = ts_node_named_child_count(stmt);
       for (int j = 0; j < m; ++j) {
@@ -215,7 +236,9 @@ void PythonGSGBuilder::build_block_children(TSNode block, const string &source,
       e.addl_cost = ac;
       out.emplace_back(std::move(e));
     } else if (t == "with_statement") {
-      GSGNode w; w.kind = GSGNodeKind::With; w.loc = loc_from_node(stmt);
+      GSGNode w;
+      w.kind = GSGNodeKind::With;
+      w.loc = loc_from_node(stmt);
       unsigned int wc = 0;
       int m = ts_node_named_child_count(stmt);
       for (int j = 0; j < m; ++j) {
@@ -224,19 +247,24 @@ void PythonGSGBuilder::build_block_children(TSNode block, const string &source,
       }
       w.addl_cost = wc;
       TSNode wbody = ts_node_child_by_field_name(stmt, "body", 4);
-      if (!ts_node_is_null(wbody)) build_block_children(wbody, source, w.children, nesting + 1);
+      if (!ts_node_is_null(wbody))
+        build_block_children(wbody, source, w.children, nesting + 1);
       out.emplace_back(std::move(w));
     } else if (t == "assignment") {
       TSNode right = ts_node_child_by_field_name(stmt, "right", 5);
       if (!ts_node_is_null(right)) {
-        GSGNode e; e.kind = GSGNodeKind::Expr; e.loc = loc_from_node(stmt);
+        GSGNode e;
+        e.kind = GSGNodeKind::Expr;
+        e.loc = loc_from_node(stmt);
         e.addl_cost = count_bool_ops_expr(right, nesting, source);
         out.emplace_back(std::move(e));
       }
     } else if (t == "augmented_assignment") {
       TSNode right = ts_node_child_by_field_name(stmt, "right", 5);
       if (!ts_node_is_null(right)) {
-        GSGNode e; e.kind = GSGNodeKind::Expr; e.loc = loc_from_node(stmt);
+        GSGNode e;
+        e.kind = GSGNodeKind::Expr;
+        e.loc = loc_from_node(stmt);
         e.addl_cost = count_bool_ops_expr(right, nesting, source);
         out.emplace_back(std::move(e));
       }
@@ -249,35 +277,82 @@ void PythonGSGBuilder::build_block_children(TSNode block, const string &source,
         if (st == "assignment") {
           TSNode right = ts_node_child_by_field_name(sub, "right", 5);
           unsigned int cost = 0;
-          if (!ts_node_is_null(right)) cost = count_bool_ops_expr(right, nesting, source);
-          else cost = count_bool_ops_expr(sub, nesting, source);
-          if (cost) { GSGNode e; e.kind = GSGNodeKind::Expr; e.loc = loc_from_node(sub); e.addl_cost = cost; out.emplace_back(std::move(e)); }
+          if (!ts_node_is_null(right))
+            cost = count_bool_ops_expr(right, nesting, source);
+          else
+            cost = count_bool_ops_expr(sub, nesting, source);
+          if (cost) {
+            GSGNode e;
+            e.kind = GSGNodeKind::Expr;
+            e.loc = loc_from_node(sub);
+            e.addl_cost = cost;
+            out.emplace_back(std::move(e));
+          }
         } else if (st == "augmented_assignment") {
           TSNode right = ts_node_child_by_field_name(sub, "right", 5);
           unsigned int cost = 0;
-          if (!ts_node_is_null(right)) cost = count_bool_ops_expr(right, nesting, source);
-          else cost = count_bool_ops_expr(sub, nesting, source);
-          if (cost) { GSGNode e; e.kind = GSGNodeKind::Expr; e.loc = loc_from_node(sub); e.addl_cost = cost; out.emplace_back(std::move(e)); }
+          if (!ts_node_is_null(right))
+            cost = count_bool_ops_expr(right, nesting, source);
+          else
+            cost = count_bool_ops_expr(sub, nesting, source);
+          if (cost) {
+            GSGNode e;
+            e.kind = GSGNodeKind::Expr;
+            e.loc = loc_from_node(sub);
+            e.addl_cost = cost;
+            out.emplace_back(std::move(e));
+          }
         } else if (st == "return_statement") {
           TSNode value = ts_node_named_child(sub, 0);
           unsigned int cost = 0;
-          if (!ts_node_is_null(value)) cost = count_bool_ops_expr(value, nesting, source);
-          else cost = count_bool_ops_expr(sub, nesting, source);
-          if (cost) { GSGNode e; e.kind = GSGNodeKind::Expr; e.loc = loc_from_node(sub); e.addl_cost = cost; out.emplace_back(std::move(e)); }
+          if (!ts_node_is_null(value))
+            cost = count_bool_ops_expr(value, nesting, source);
+          else
+            cost = count_bool_ops_expr(sub, nesting, source);
+          if (cost) {
+            GSGNode e;
+            e.kind = GSGNodeKind::Expr;
+            e.loc = loc_from_node(sub);
+            e.addl_cost = cost;
+            out.emplace_back(std::move(e));
+          }
         } else if (st == "assert_statement") {
           unsigned int ac = 0;
           int cm = ts_node_named_child_count(sub);
-          for (int cj = 0; cj < cm; ++cj) ac += count_bool_ops_expr(ts_node_named_child(sub, cj), nesting, source);
-          if (ac) { GSGNode e; e.kind = GSGNodeKind::Expr; e.loc = loc_from_node(sub); e.addl_cost = ac; out.emplace_back(std::move(e)); }
+          for (int cj = 0; cj < cm; ++cj)
+            ac += count_bool_ops_expr(ts_node_named_child(sub, cj), nesting,
+                                      source);
+          if (ac) {
+            GSGNode e;
+            e.kind = GSGNodeKind::Expr;
+            e.loc = loc_from_node(sub);
+            e.addl_cost = ac;
+            out.emplace_back(std::move(e));
+          }
         } else if (st == "raise_statement") {
           unsigned int rc = 0;
           int rm = ts_node_named_child_count(sub);
-          for (int rj = 0; rj < rm; ++rj) rc += count_bool_ops_expr(ts_node_named_child(sub, rj), nesting, source);
-          if (rc) { GSGNode e; e.kind = GSGNodeKind::Expr; e.loc = loc_from_node(sub); e.addl_cost = rc; out.emplace_back(std::move(e)); }
+          for (int rj = 0; rj < rm; ++rj)
+            rc += count_bool_ops_expr(ts_node_named_child(sub, rj), nesting,
+                                      source);
+          if (rc) {
+            GSGNode e;
+            e.kind = GSGNodeKind::Expr;
+            e.loc = loc_from_node(sub);
+            e.addl_cost = rc;
+            out.emplace_back(std::move(e));
+          }
         } else if (st == "conditional_expression") {
-          // Rare: bare ternary expression as a statement – count per complexipy as expression
+          // Rare: bare ternary expression as a statement – count per complexipy
+          // as expression
           unsigned int cost = count_bool_ops_expr(sub, nesting, source);
-          if (cost) { GSGNode e; e.kind = GSGNodeKind::Expr; e.loc = loc_from_node(sub); e.addl_cost = cost; out.emplace_back(std::move(e)); }
+          if (cost) {
+            GSGNode e;
+            e.kind = GSGNodeKind::Expr;
+            e.loc = loc_from_node(sub);
+            e.addl_cost = cost;
+            out.emplace_back(std::move(e));
+          }
         }
       }
     } else if (t == "function_definition")
@@ -288,39 +363,47 @@ void PythonGSGBuilder::build_block_children(TSNode block, const string &source,
   }
 }
 
-GSGNode PythonGSGBuilder::build_for(TSNode node, const string &source, int nesting) {
+GSGNode PythonGSGBuilder::build_for(TSNode node, const string &source,
+                                    int nesting) {
   (void)source;
   GSGNode g;
   g.kind = GSGNodeKind::For;
   g.loc = loc_from_node(node);
   TSNode body = ts_node_child_by_field_name(node, "body", 4);
-  if (!ts_node_is_null(body)) build_block_children(body, source, g.children, /*nesting=*/nesting + 1);
+  if (!ts_node_is_null(body))
+    build_block_children(body, source, g.children, /*nesting=*/nesting + 1);
   return g;
 }
 
-GSGNode PythonGSGBuilder::build_while(TSNode node, const string &source, int nesting) {
+GSGNode PythonGSGBuilder::build_while(TSNode node, const string &source,
+                                      int nesting) {
   GSGNode g;
   g.kind = GSGNodeKind::While;
   g.loc = loc_from_node(node);
 
   TSNode cond = ts_node_child_by_field_name(node, "condition", 9);
-  if (!ts_node_is_null(cond)) g.addl_cost += count_bool_ops_expr(cond, /*nesting=*/nesting, source);
+  if (!ts_node_is_null(cond))
+    g.addl_cost += count_bool_ops_expr(cond, /*nesting=*/nesting, source);
 
   TSNode body = ts_node_child_by_field_name(node, "body", 4);
-  if (!ts_node_is_null(body)) build_block_children(body, source, g.children, /*nesting=*/nesting + 1);
+  if (!ts_node_is_null(body))
+    build_block_children(body, source, g.children, /*nesting=*/nesting + 1);
   return g;
 }
 
-GSGNode PythonGSGBuilder::build_if(TSNode node, const string &source, int nesting) {
+GSGNode PythonGSGBuilder::build_if(TSNode node, const string &source,
+                                   int nesting) {
   GSGNode g;
   g.kind = GSGNodeKind::If;
   g.loc = loc_from_node(node);
 
   TSNode cond = ts_node_child_by_field_name(node, "condition", 9);
-  if (!ts_node_is_null(cond)) g.addl_cost += count_bool_ops_expr(cond, /*nesting=*/nesting, source);
+  if (!ts_node_is_null(cond))
+    g.addl_cost += count_bool_ops_expr(cond, /*nesting=*/nesting, source);
 
   TSNode cons = ts_node_child_by_field_name(node, "consequence", 11);
-  if (!ts_node_is_null(cons)) build_block_children(cons, source, g.children, /*nesting=*/nesting + 1);
+  if (!ts_node_is_null(cons))
+    build_block_children(cons, source, g.children, /*nesting=*/nesting + 1);
 
   // Alternatives: multiple elif_clause and optionally else_clause
   int n = ts_node_named_child_count(node);
@@ -334,16 +417,21 @@ GSGNode PythonGSGBuilder::build_if(TSNode node, const string &source, int nestin
       eif.loc = loc_from_node(ch);
       TSNode econd = ts_node_child_by_field_name(ch, "condition", 9);
       if (!ts_node_is_null(econd))
-        eif.addl_cost += count_bool_ops_expr(econd, /*nesting=*/nesting, source);
+        eif.addl_cost +=
+            count_bool_ops_expr(econd, /*nesting=*/nesting, source);
       TSNode ebody = ts_node_child_by_field_name(ch, "consequence", 11);
-      if (!ts_node_is_null(ebody)) build_block_children(ebody, source, eif.children, /*nesting=*/nesting + 1);
+      if (!ts_node_is_null(ebody))
+        build_block_children(ebody, source, eif.children,
+                             /*nesting=*/nesting + 1);
       g.children.emplace_back(std::move(eif));
     } else if (t == "else_clause") {
       GSGNode el;
       el.kind = GSGNodeKind::Else;
       el.loc = loc_from_node(ch);
       TSNode ebody = ts_node_child_by_field_name(ch, "body", 4);
-      if (!ts_node_is_null(ebody)) build_block_children(ebody, source, el.children, /*nesting=*/nesting + 1);
+      if (!ts_node_is_null(ebody))
+        build_block_children(ebody, source, el.children,
+                             /*nesting=*/nesting + 1);
       g.children.emplace_back(std::move(el));
     }
   }

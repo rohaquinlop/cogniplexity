@@ -47,8 +47,7 @@ enum BoolOp { And, Or, Not, Unknown };
 
 // Entry-point to get complexity per function for a given language
 std::vector<FunctionComplexity> functions_complexity_file(const std::string&,
-                                                          TSParser*,
-                                                          Language);
+                                                          TSParser*, Language);
 
 // Compute complexity from a GSG node
 std::pair<unsigned int, std::vector<LineComplexity>>

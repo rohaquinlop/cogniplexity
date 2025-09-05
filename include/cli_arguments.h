@@ -3,6 +3,7 @@
 
 #include <string>
 #include <vector>
+
 #include "./gsg.h"
 
 enum DetailType { LOW, NORMAL };
@@ -19,9 +20,9 @@ struct CLI_ARGUMENTS {
   bool output_csv = false;          // --output-csv -csv
   bool output_json = false;         // --output-json -json
   // If > 0, truncate function names to this width when printing
-  int max_function_width = 0;       // --max-fn-width -fw
+  int max_function_width = 0;  // --max-fn-width -fw
   // Show help/usage and exit
-  bool show_help = false;           // --help -h
+  bool show_help = false;  // --help -h
   // Optional filter: if non-empty, only these languages are considered
   std::vector<Language> languages;
 };

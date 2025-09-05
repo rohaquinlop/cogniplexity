@@ -1,16 +1,13 @@
-// New implementation using General Syntax Graph
-#include <cstdint>
-#include <string_view>
-
-#include "../include/builders/python_gsg_builder.h"
-#include "../include/builders/javascript_gsg_builder.h"
-#include "../include/builders/c_gsg_builder.h"
 #include <functional>
+
+#include "../include/builders/c_gsg_builder.h"
+#include "../include/builders/javascript_gsg_builder.h"
+#include "../include/builders/python_gsg_builder.h"
 #include "../include/cognitive_complexity.h"
 #include "../include/gsg.h"
 
-static inline LineComplexity build_line_complexity_from_loc(const SourceLoc &loc,
-                                                            unsigned int c) {
+static inline LineComplexity build_line_complexity_from_loc(
+    const SourceLoc &loc, unsigned int c) {
   return LineComplexity{loc.row, loc.start_col, loc.end_col, c};
 }
 
@@ -81,7 +78,8 @@ compute_cognitive_complexity_gsg(const GSGNode &node, int nesting_level) {
     case GSGNodeKind::Expr: {
       if (node.addl_cost) {
         complexity += node.addl_cost;
-        lines.push_back(build_line_complexity_from_loc(node.loc, node.addl_cost));
+        lines.push_back(
+            build_line_complexity_from_loc(node.loc, node.addl_cost));
       }
       count_children(nesting_level + 1);
       break;
@@ -130,9 +128,10 @@ std::vector<FunctionComplexity> functions_complexity_file(
   }
 
   auto func_nodes = builder->build_functions(root_node, source_code);
-  // helper to collect function complexities recursively, applying nesting to nested functions
-  std::function<void(const GSGNode&, int)> collect;
-  collect = [&](const GSGNode &fn, int nesting){
+  // helper to collect function complexities recursively, applying nesting to
+  // nested functions
+  std::function<void(const GSGNode &, int)> collect;
+  collect = [&](const GSGNode &fn, int nesting) {
     auto [c, lines] = compute_cognitive_complexity_gsg(fn, nesting);
     functions.push_back(FunctionComplexity{.name = fn.name,
                                            .complexity = c,
@@ -140,7 +139,8 @@ std::vector<FunctionComplexity> functions_complexity_file(
                                            .start_col = fn.loc.start_col,
                                            .end_col = fn.loc.end_col,
                                            .lines = lines});
-    for (const auto &ch : fn.children) if (ch.kind == GSGNodeKind::Function) collect(ch, nesting + 1);
+    for (const auto &ch : fn.children)
+      if (ch.kind == GSGNodeKind::Function) collect(ch, nesting + 1);
   };
   for (const auto &fn : func_nodes) collect(fn, 0);
 

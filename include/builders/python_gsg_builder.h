@@ -16,7 +16,8 @@ class PythonGSGBuilder : public IBuilder {
   GSGNode build_for(TSNode node, const std::string &source, int nesting);
   GSGNode build_while(TSNode node, const std::string &source, int nesting);
   GSGNode build_if(TSNode node, const std::string &source, int nesting);
-  void build_try(TSNode node, const std::string &source, std::vector<GSGNode> &out, int nesting);
+  void build_try(TSNode node, const std::string &source,
+                 std::vector<GSGNode> &out, int nesting);
 
   // helpers
   static SourceLoc loc_from_node(TSNode node);

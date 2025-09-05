@@ -1,6 +1,6 @@
+#include <algorithm>
 #include <stdexcept>
 #include <string>
-#include <algorithm>
 
 #include "../include/cli_arguments.h"
 #include "../include/gsg.h"
@@ -40,7 +40,9 @@ bool is_output_json(std::string &s) {
 
 static bool is_lang(std::string &s) { return s == "--lang" || s == "-l"; }
 
-static bool is_max_fn_width(std::string &s) { return s == "--max-fn-width" || s == "-fw"; }
+static bool is_max_fn_width(std::string &s) {
+  return s == "--max-fn-width" || s == "-fw";
+}
 
 static bool is_help(std::string &s) { return s == "--help" || s == "-h"; }
 
@@ -52,36 +54,46 @@ bool is_argument(std::string &s) {
 
 static Language language_from_token(std::string tok) {
   // normalize
-  std::transform(tok.begin(), tok.end(), tok.begin(), [](unsigned char c){ return std::tolower(c); });
+  std::transform(tok.begin(), tok.end(), tok.begin(),
+                 [](unsigned char c) { return std::tolower(c); });
   if (tok == "py" || tok == "python") return Language::Python;
   if (tok == "js" || tok == "javascript") return Language::JavaScript;
   if (tok == "ts" || tok == "typescript") return Language::TypeScript;
   if (tok == "tsx") return Language::TypeScript;
   if (tok == "c") return Language::C;
-  if (tok == "cpp" || tok == "c++" || tok == "cc" || tok == "cxx") return Language::Cpp;
+  if (tok == "cpp" || tok == "c++" || tok == "cc" || tok == "cxx")
+    return Language::Cpp;
   if (tok == "java") return Language::Java;
   return Language::Unknown;
 }
 
-static void parse_languages_list(const std::string &value, std::vector<Language> &out) {
+static void parse_languages_list(const std::string &value,
+                                 std::vector<Language> &out) {
   size_t start = 0;
   while (start <= value.size()) {
     size_t comma = value.find(',', start);
-    std::string tok = value.substr(start, comma == std::string::npos ? std::string::npos : (comma - start));
+    std::string tok =
+        value.substr(start, comma == std::string::npos ? std::string::npos
+                                                       : (comma - start));
     // trim spaces
-    auto trim = [](std::string &s){
+    auto trim = [](std::string &s) {
       size_t a = s.find_first_not_of(" \t\n");
       size_t b = s.find_last_not_of(" \t\n");
-      if (a == std::string::npos) { s.clear(); return; }
+      if (a == std::string::npos) {
+        s.clear();
+        return;
+      }
       s = s.substr(a, b - a + 1);
     };
     trim(tok);
     if (!tok.empty()) {
       Language lang = language_from_token(tok);
       if (lang == Language::Unknown)
-        throw std::invalid_argument("Unknown language in --lang: '" + tok + "'");
+        throw std::invalid_argument("Unknown language in --lang: '" + tok +
+                                    "'");
       // Avoid duplicates
-      if (std::find(out.begin(), out.end(), lang) == out.end()) out.push_back(lang);
+      if (std::find(out.begin(), out.end(), lang) == out.end())
+        out.push_back(lang);
     }
     if (comma == std::string::npos) break;
     start = comma + 1;
@@ -116,10 +128,12 @@ CLI_ARGUMENTS load_from_vs_arguments(std::vector<std::string> &arguments) {
   if (!reading_paths && paths.empty()) {
     bool any_help = false;
     for (int j = i; j < arguments.size(); ++j) {
-      if (is_help(arguments[j])) { any_help = true; break; }
+      if (is_help(arguments[j])) {
+        any_help = true;
+        break;
+      }
     }
-    if (!any_help)
-      throw std::invalid_argument("Expected at least one path");
+    if (!any_help) throw std::invalid_argument("Expected at least one path");
   }
 
   for (i = i; i < arguments.size(); i++) {
@@ -151,10 +165,10 @@ CLI_ARGUMENTS load_from_vs_arguments(std::vector<std::string> &arguments) {
         max_function_width = std::stoi(arguments[i]);
         if (max_function_width < 0) max_function_width = 0;
       } catch (const std::invalid_argument &e) {
-        throw std::invalid_argument("Expected a number after --max-fn-width/-fw");
+        throw std::invalid_argument(
+            "Expected a number after --max-fn-width/-fw");
       }
-    }
-    else if (is_detail(arguments[i])) {
+    } else if (is_detail(arguments[i])) {
       if (++i >= arguments.size())
         throw std::invalid_argument(
             "Expected detail level, use '-d low' or '-d normal'");
@@ -189,10 +203,14 @@ CLI_ARGUMENTS load_from_vs_arguments(std::vector<std::string> &arguments) {
                                   "' on call, use the valid arguments");
   }
 
-  return CLI_ARGUMENTS{paths,      max_complexity_allowed,
-                       quiet,      ignore_complexity,
-                       detail,     sort,
-                       output_csv, output_json,
+  return CLI_ARGUMENTS{paths,
+                       max_complexity_allowed,
+                       quiet,
+                       ignore_complexity,
+                       detail,
+                       sort,
+                       output_csv,
+                       output_json,
                        max_function_width,
                        show_help,
                        langs_filter};

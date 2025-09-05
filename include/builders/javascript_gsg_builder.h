@@ -22,7 +22,8 @@ class JavaScriptGSGBuilder : public IBuilder {
   GSGNode build_do_while(TSNode n, const std::string &src);
 
   // expression costs
-  static unsigned int js_count_bool_ops_expr(TSNode n, int nesting, const std::string &src);
+  static unsigned int js_count_bool_ops_expr(TSNode n, int nesting,
+                                             const std::string &src);
 };
 
 #endif
