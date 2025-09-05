@@ -79,7 +79,7 @@ if(COGNITY_FETCH_GRAMMARS)
   ts_fetch_grammar(CPP https://github.com/tree-sitter/tree-sitter-cpp)
 else()
   # Fallback to vendored directories
-  ts_add_grammar(python ${CMAKE_CURRENT_SOURCE_DIR}/tree-sitter-python)
+  # ts_add_grammar(python ${CMAKE_CURRENT_SOURCE_DIR}/tree-sitter-python)
   # Uncomment if vendored JS grammar exists
   # ts_add_grammar(javascript ${CMAKE_CURRENT_SOURCE_DIR}/tree-sitter-javascript)
   # ts_add_grammar(typescript ${CMAKE_CURRENT_SOURCE_DIR}/tree-sitter-typescript/typescript)
