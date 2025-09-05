@@ -18,6 +18,10 @@ struct CLI_ARGUMENTS {
   SortType sort = NAME;             // --sort -s
   bool output_csv = false;          // --output-csv -csv
   bool output_json = false;         // --output-json -json
+  // If > 0, truncate function names to this width when printing
+  int max_function_width = 0;       // --max-fn-width -fw
+  // Show help/usage and exit
+  bool show_help = false;           // --help -h
   // Optional filter: if non-empty, only these languages are considered
   std::vector<Language> languages;
 };

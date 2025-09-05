@@ -40,10 +40,14 @@ bool is_output_json(std::string &s) {
 
 static bool is_lang(std::string &s) { return s == "--lang" || s == "-l"; }
 
+static bool is_max_fn_width(std::string &s) { return s == "--max-fn-width" || s == "-fw"; }
+
+static bool is_help(std::string &s) { return s == "--help" || s == "-h"; }
+
 bool is_argument(std::string &s) {
   return is_max_complexity(s) or is_quiet(s) or is_ignore_complexity(s) or
          is_detail(s) or is_sort(s) or is_output_csv(s) or is_output_json(s) ||
-         is_lang(s);
+         is_lang(s) || is_max_fn_width(s) || is_help(s);
 }
 
 static Language language_from_token(std::string tok) {
@@ -96,6 +100,8 @@ CLI_ARGUMENTS load_from_vs_arguments(std::vector<std::string> &arguments) {
   bool output_csv = false;
   bool output_json = false;
   std::vector<Language> langs_filter;
+  int max_function_width = 0;
+  bool show_help = false;
 
   for (i = 0; i < arguments.size() && reading_paths; i++) {
     if (!is_argument(arguments[i]))
@@ -106,8 +112,15 @@ CLI_ARGUMENTS load_from_vs_arguments(std::vector<std::string> &arguments) {
     }
   }
 
-  if (!reading_paths and paths.empty())
-    throw std::invalid_argument("Expected at least one path");
+  // Allow --help/-h without requiring paths
+  if (!reading_paths && paths.empty()) {
+    bool any_help = false;
+    for (int j = i; j < arguments.size(); ++j) {
+      if (is_help(arguments[j])) { any_help = true; break; }
+    }
+    if (!any_help)
+      throw std::invalid_argument("Expected at least one path");
+  }
 
   for (i = i; i < arguments.size(); i++) {
     if (is_max_complexity(arguments[i])) {
@@ -125,10 +138,21 @@ CLI_ARGUMENTS load_from_vs_arguments(std::vector<std::string> &arguments) {
       quiet = true;
     else if (is_ignore_complexity(arguments[i]))
       ignore_complexity = true;
+    else if (is_help(arguments[i]))
+      show_help = true;
     else if (is_lang(arguments[i])) {
       if (++i >= arguments.size())
         throw std::invalid_argument("Expected language list after --lang/-l");
       parse_languages_list(arguments[i], langs_filter);
+    } else if (is_max_fn_width(arguments[i])) {
+      if (++i >= arguments.size())
+        throw std::invalid_argument("Expected number after --max-fn-width/-fw");
+      try {
+        max_function_width = std::stoi(arguments[i]);
+        if (max_function_width < 0) max_function_width = 0;
+      } catch (const std::invalid_argument &e) {
+        throw std::invalid_argument("Expected a number after --max-fn-width/-fw");
+      }
     }
     else if (is_detail(arguments[i])) {
       if (++i >= arguments.size())
@@ -169,5 +193,7 @@ CLI_ARGUMENTS load_from_vs_arguments(std::vector<std::string> &arguments) {
                        quiet,      ignore_complexity,
                        detail,     sort,
                        output_csv, output_json,
+                       max_function_width,
+                       show_help,
                        langs_filter};
 }
