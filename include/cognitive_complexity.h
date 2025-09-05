@@ -6,9 +6,15 @@
 #include <vector>
 
 #include "../tree-sitter/lib/include/tree_sitter/api.h"
+#include "./gsg.h"
 
 extern "C" {
 const TSLanguage* tree_sitter_python();
+const TSLanguage* tree_sitter_javascript();
+const TSLanguage* tree_sitter_typescript();
+const TSLanguage* tree_sitter_tsx();
+const TSLanguage* tree_sitter_c();
+const TSLanguage* tree_sitter_cpp();
 }
 
 struct LineComplexity {
@@ -19,7 +25,7 @@ struct LineComplexity {
 };
 
 struct FunctionComplexity {
-  std::string_view name;
+  std::string name;
   unsigned int complexity;
   unsigned int row;
   unsigned int start_col;
@@ -39,21 +45,13 @@ struct CodeComplexity {
 
 enum BoolOp { And, Or, Not, Unknown };
 
+// Entry-point to get complexity per function for a given language
 std::vector<FunctionComplexity> functions_complexity_file(const std::string&,
-                                                          TSParser*);
+                                                          TSParser*,
+                                                          Language);
+
+// Compute complexity from a GSG node
 std::pair<unsigned int, std::vector<LineComplexity>>
-compute_cognitive_complexity(TSNode, int);
-static bool is_decorator(TSNode&);
-static std::string_view slice_source(const std::string&, TSNode);
-static std::string_view get_function_name(TSNode, const std::string&);
+compute_cognitive_complexity_gsg(const GSGNode&, int);
 
-static LineComplexity build_line_complexity(TSNode, unsigned int);
-static std::pair<TSNode, int> get_body(TSNode);
-static unsigned int count_bool_operators(TSNode, const std::string&);
-
-static BoolOp get_boolean_op(TSNode, const std::string&);
-static BoolOp from_text_get_bool_op(std::string_view&);
-static TSNode unwrap_parens(TSNode);
-static TSNode prev_named(TSNode);
-static TSNode next_named(TSNode);
 #endif
