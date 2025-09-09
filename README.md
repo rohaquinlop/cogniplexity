@@ -55,6 +55,7 @@ Key options
 - `-d,  --detail <low|normal>`: output detail (default normal).
 - `-csv, --output-csv`: CSV output.
 - `-json, --output-json`: JSON output.
+- `-x,  --exclude <list>`: comma‑separated files or directories to exclude.
 - `-fw, --max-fn-width <n>`: truncate printed function column to at most `n`.
 - `-h,  --help`: show help and exit.
 
@@ -62,6 +63,7 @@ Notes
 - Unsupported files are skipped.
 - If filters match nothing, you’ll see: `No matching source files found`.
 - Directory scans respect `.gitignore` files (ignored files and folders are skipped).
+- `--exclude` paths are matched literally (no globs). Files are compared by path; directories exclude everything under them. Relative paths resolve from the current working directory.
 
 ## Config (cognity.toml)
 
@@ -69,6 +71,7 @@ You can place a `cognity.toml` file in your working directory to provide default
 
 Supported keys (top‑level):
 - `paths`: array or comma‑separated string, e.g. `["src", "lib"]` or "src,lib".
+- `exclude` (or `excludes`): array or comma‑separated string of files/dirs to skip.
 - `max_complexity` or `max_complexity_allowed`: integer.
 - `quiet`: boolean.
 - `ignore_complexity`: boolean.
@@ -83,6 +86,9 @@ Example `cognity.toml`:
 ```
 # Default scan targets
 paths = ["src", "include"]
+
+# Exclude generated/vendor code
+exclude = ["node_modules", "dist", "src/legacy/old_impl.cpp"]
 
 # Output and formatting
 detail = "normal"

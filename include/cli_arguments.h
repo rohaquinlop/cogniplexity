@@ -12,6 +12,8 @@ enum SortType { ASC, DESC, NAME };
 
 struct CLI_ARGUMENTS {
   std::vector<std::string> paths;
+  // Optional: files or directories to exclude from scanning
+  std::vector<std::string> excludes;
   int max_complexity_allowed = 15;  // --max-complexity-allowed -mx
   bool quiet = false;               // --quiet -q
   bool ignore_complexity = false;   // --ignore-complexity -i
@@ -33,6 +35,7 @@ CLI_ARGUMENTS load_from_vs_arguments(std::vector<std::string>&);
 struct CLI_PARSE_RESULT {
   CLI_ARGUMENTS args;
   bool has_paths = false;
+  bool has_excludes = false;
   bool has_max_complexity = false;
   bool has_quiet = false;
   bool has_ignore_complexity = false;

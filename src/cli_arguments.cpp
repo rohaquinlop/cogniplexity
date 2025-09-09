@@ -46,10 +46,12 @@ static bool is_max_fn_width(std::string &s) {
 
 static bool is_help(std::string &s) { return s == "--help" || s == "-h"; }
 
+static bool is_exclude(std::string &s) { return s == "--exclude" || s == "-x"; }
+
 bool is_argument(std::string &s) {
   return is_max_complexity(s) or is_quiet(s) or is_ignore_complexity(s) or
          is_detail(s) or is_sort(s) or is_output_csv(s) or is_output_json(s) ||
-         is_lang(s) || is_max_fn_width(s) || is_help(s);
+         is_lang(s) || is_exclude(s) || is_max_fn_width(s) || is_help(s);
 }
 
 static Language language_from_token(std::string tok) {
@@ -104,6 +106,7 @@ CLI_ARGUMENTS load_from_vs_arguments(std::vector<std::string> &arguments) {
   int i;
   bool reading_paths = true;
   std::vector<std::string> paths;
+  std::vector<std::string> excludes;
   int max_complexity_allowed = 15;
   bool quiet = false;
   bool ignore_complexity = false;
@@ -162,6 +165,30 @@ CLI_ARGUMENTS load_from_vs_arguments(std::vector<std::string> &arguments) {
       if (++i >= arguments.size())
         throw std::invalid_argument("Expected language list after --lang/-l");
       parse_languages_list(arguments[i], langs_filter);
+    } else if (is_exclude(arguments[i])) {
+      if (++i >= arguments.size())
+        throw std::invalid_argument("Expected path list after --exclude/-x");
+      size_t start = 0;
+      const std::string &value = arguments[i];
+      while (start <= value.size()) {
+        size_t comma = value.find(',', start);
+        std::string tok =
+            value.substr(start, comma == std::string::npos ? std::string::npos
+                                                           : (comma - start));
+        auto trim = [](std::string &s) {
+          size_t a = s.find_first_not_of(" \t\n");
+          size_t b = s.find_last_not_of(" \t\n");
+          if (a == std::string::npos) {
+            s.clear();
+            return;
+          }
+          s = s.substr(a, b - a + 1);
+        };
+        trim(tok);
+        if (!tok.empty()) excludes.push_back(tok);
+        if (comma == std::string::npos) break;
+        start = comma + 1;
+      }
     } else if (is_max_fn_width(arguments[i])) {
       if (++i >= arguments.size())
         throw std::invalid_argument("Expected number after --max-fn-width/-fw");
@@ -208,6 +235,7 @@ CLI_ARGUMENTS load_from_vs_arguments(std::vector<std::string> &arguments) {
   }
 
   return CLI_ARGUMENTS{paths,
+                       excludes,
                        max_complexity_allowed,
                        quiet,
                        ignore_complexity,
@@ -227,6 +255,7 @@ CLI_PARSE_RESULT parse_arguments_relaxed(std::vector<std::string> &arguments) {
   int i;
   bool reading_paths = true;
   std::vector<std::string> paths;
+  std::vector<std::string> excludes;
   int max_complexity_allowed = 15;
   bool quiet = false;
   bool ignore_complexity = false;
@@ -278,6 +307,31 @@ CLI_PARSE_RESULT parse_arguments_relaxed(std::vector<std::string> &arguments) {
         throw std::invalid_argument("Expected language list after --lang/-l");
       parse_languages_list(arguments[i], langs_filter);
       res.has_lang = true;
+    } else if (is_exclude(arguments[i])) {
+      if (++i >= arguments.size())
+        throw std::invalid_argument("Expected path list after --exclude/-x");
+      size_t start = 0;
+      const std::string &value = arguments[i];
+      while (start <= value.size()) {
+        size_t comma = value.find(',', start);
+        std::string tok =
+            value.substr(start, comma == std::string::npos ? std::string::npos
+                                                           : (comma - start));
+        auto trim = [](std::string &s) {
+          size_t a = s.find_first_not_of(" \t\n");
+          size_t b = s.find_last_not_of(" \t\n");
+          if (a == std::string::npos) {
+            s.clear();
+            return;
+          }
+          s = s.substr(a, b - a + 1);
+        };
+        trim(tok);
+        if (!tok.empty()) excludes.push_back(tok);
+        if (comma == std::string::npos) break;
+        start = comma + 1;
+      }
+      res.has_excludes = true;
     } else if (is_max_fn_width(arguments[i])) {
       if (++i >= arguments.size())
         throw std::invalid_argument("Expected number after --max-fn-width/-fw");
@@ -328,6 +382,7 @@ CLI_PARSE_RESULT parse_arguments_relaxed(std::vector<std::string> &arguments) {
   }
 
   res.args = CLI_ARGUMENTS{paths,
+                           excludes,
                            max_complexity_allowed,
                            quiet,
                            ignore_complexity,

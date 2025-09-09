@@ -184,10 +184,11 @@ static bool language_is_selected(Language lang,
   return false;
 }
 
-static void collect_dir_with_gitignore(const std::filesystem::path &dir,
-                                       const std::vector<Language> &filter,
-                                       std::vector<std::string> &out,
-                                       std::vector<ignore::RulesFile> &stack) {
+static void collect_dir_with_gitignore(
+    const std::filesystem::path &dir, const std::vector<Language> &filter,
+    const std::vector<std::filesystem::path> &exclude_dirs,
+    const std::vector<std::filesystem::path> &exclude_files,
+    std::vector<std::string> &out, std::vector<ignore::RulesFile> &stack) {
   namespace fs = std::filesystem;
   auto rf = ignore::load_rules_for_dir(dir);
   bool pushed = !rf.rules.empty();
@@ -205,18 +206,53 @@ static void collect_dir_with_gitignore(const std::filesystem::path &dir,
 
     if (is_dir && p.filename() == ".git") continue;
 
+    // Exclude directories early (skip recursion)
+    if (is_dir) {
+      bool skip_dir = false;
+      for (const auto &ed : exclude_dirs) {
+        std::error_code ec2;
+        auto rel = fs::relative(p, ed, ec2);
+        if (!ec2 && !rel.empty() && rel.is_relative() &&
+            rel.native().rfind("..", 0) != 0) {
+          skip_dir = true;
+          break;
+        }
+        std::error_code ec3;
+        auto pnorm = fs::weakly_canonical(p, ec3);
+        auto dnorm = fs::weakly_canonical(ed, ec3);
+        if (!ec3 && pnorm == dnorm) {
+          skip_dir = true;
+          break;
+        }
+      }
+      if (skip_dir) continue;
+    }
+
     if (ignore::is_ignored(stack, p, is_dir)) {
       if (is_dir) continue;
       if (is_reg) continue;
     }
 
     if (is_dir) {
-      collect_dir_with_gitignore(p, filter, out, stack);
+      collect_dir_with_gitignore(p, filter, exclude_dirs, exclude_files, out,
+                                 stack);
       continue;
     }
 
     if (is_reg) {
       std::string fpath = p.string();
+      // Exclude files
+      bool skip_file = false;
+      for (const auto &ef : exclude_files) {
+        std::error_code ec3;
+        auto pnorm = fs::weakly_canonical(p, ec3);
+        auto fnorm = fs::weakly_canonical(ef, ec3);
+        if (!ec3 && pnorm == fnorm) {
+          skip_file = true;
+          break;
+        }
+      }
+      if (skip_file) continue;
       Language lang = detect_language_from_path(fpath);
       if (lang == Language::Unknown) continue;
       if (!language_is_selected(lang, filter)) continue;
@@ -229,15 +265,53 @@ static void collect_dir_with_gitignore(const std::filesystem::path &dir,
 
 static void collect_source_files(const std::vector<std::string> &inputs,
                                  const std::vector<Language> &filter,
+                                 const std::vector<std::string> &excludes,
                                  std::vector<std::string> &out) {
   namespace fs = std::filesystem;
+  // Prepare exclude lists
+  std::vector<fs::path> exclude_dirs;
+  std::vector<fs::path> exclude_files;
+  for (const auto &e : excludes) {
+    std::error_code ec;
+    fs::path ep = fs::absolute(fs::path(e), ec);
+    if (ec) ep = fs::path(e);
+    if (fs::is_directory(ep, ec))
+      exclude_dirs.push_back(ep);
+    else
+      exclude_files.push_back(ep);
+  }
   for (const auto &p : inputs) {
     fs::path path(p);
     std::error_code ec;
     if (fs::is_directory(path, ec)) {
       std::vector<ignore::RulesFile> stack;
-      collect_dir_with_gitignore(path, filter, out, stack);
+      // Skip top-level directory if excluded
+      bool skip_dir = false;
+      for (const auto &ed : exclude_dirs) {
+        std::error_code ec2;
+        auto rel = fs::weakly_canonical(path, ec2);
+        auto dnorm = fs::weakly_canonical(ed, ec2);
+        if (!ec2 && rel == dnorm) {
+          skip_dir = true;
+          break;
+        }
+      }
+      if (skip_dir) continue;
+      collect_dir_with_gitignore(path, filter, exclude_dirs, exclude_files, out,
+                                 stack);
     } else if (fs::is_regular_file(path, ec)) {
+      // Skip if explicitly excluded
+      bool skip = false;
+      for (const auto &ef : exclude_files) {
+        std::error_code ec3;
+        auto pnorm = fs::weakly_canonical(path, ec3);
+        auto fnorm = fs::weakly_canonical(ef, ec3);
+        if (!ec3 && pnorm == fnorm) {
+          skip = true;
+          break;
+        }
+      }
+      if (skip) continue;
       Language lang = detect_language_from_path(p);
       if (lang != Language::Unknown && language_is_selected(lang, filter))
         out.push_back(p);
@@ -279,6 +353,8 @@ int main(int argc, char **argv) {
            "  -json, --output-json          Output JSON\n"
            "  -l,  --lang <list>            Comma-separated languages filter "
            "(e.g. py,js)\n"
+           "  -x,  --exclude <list>         Comma-separated files/dirs to "
+           "exclude\n"
            "  -fw, --max-fn-width <int>     Truncate function names to width "
            "when printing\n"
            "  -h,  --help                   Show this help and exit\n"
@@ -311,6 +387,7 @@ int main(int argc, char **argv) {
     if (file_cfg.present.languages)
       cli_args.languages = file_cfg.args.languages;
     if (file_cfg.present.paths) cli_args.paths = file_cfg.args.paths;
+    if (file_cfg.present.excludes) cli_args.excludes = file_cfg.args.excludes;
   }
 
   // Apply CLI overrides where present
@@ -327,6 +404,7 @@ int main(int argc, char **argv) {
     cli_args.max_function_width = parsed.args.max_function_width;
   if (parsed.has_lang) cli_args.languages = parsed.args.languages;
   if (parsed.has_paths) cli_args.paths = parsed.args.paths;
+  if (parsed.has_excludes) cli_args.excludes = parsed.args.excludes;
 
   if (cli_args.paths.empty()) {
     term::Painter p;
@@ -342,7 +420,8 @@ int main(int argc, char **argv) {
   std::string source_code;
 
   std::vector<std::string> files;
-  collect_source_files(cli_args.paths, cli_args.languages, files);
+  collect_source_files(cli_args.paths, cli_args.languages, cli_args.excludes,
+                       files);
   if (files.empty()) {
     term::Painter p;
     p.init(false, false);

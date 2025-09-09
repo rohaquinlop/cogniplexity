@@ -7,6 +7,7 @@
 
 struct ConfigPresence {
   bool paths = false;
+  bool excludes = false;
   bool max_complexity = false;
   bool quiet = false;
   bool ignore_complexity = false;
@@ -33,7 +34,7 @@ struct LoadedConfig {
 // Supported keys (case-insensitive):
 //   paths, max_complexity | max_complexity_allowed, quiet, ignore_complexity,
 //   detail, sort, output_csv, output_json, max_fn_width | max_function_width,
-//   lang | languages
+//   lang | languages, exclude
 LoadedConfig load_cognity_toml(const std::string &filepath);
 
 #endif

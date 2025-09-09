@@ -41,7 +41,7 @@ static inline bool ieq(const string &a, const string &b) {
 
 static std::optional<string> parse_string_value(const string &s, size_t &pos) {
   if (pos >= s.size() || s[pos] != '"') return std::nullopt;
-  ++pos;  // skip opening quote
+  ++pos;
   std::ostringstream out;
   while (pos < s.size()) {
     char c = s[pos++];
@@ -164,7 +164,7 @@ LoadedConfig load_cognity_toml(const std::string &filepath) {
   namespace fs = std::filesystem;
   std::error_code ec;
   if (!fs::exists(filepath, ec) || !fs::is_regular_file(filepath, ec)) {
-    return cfg;  // not loaded
+    return cfg;
   }
 
   std::ifstream in(filepath);
@@ -201,6 +201,25 @@ LoadedConfig load_cognity_toml(const std::string &filepath) {
       if (!vals.empty()) {
         cfg.args.paths = vals;
         cfg.present.paths = true;
+      }
+      continue;
+    }
+
+    if (ieq(k, "exclude") || ieq(k, "excludes")) {
+      // support ["a", "b"] or comma-separated string
+      std::vector<string> vals;
+      if (!value.empty() && value.front() == '[') {
+        vals = parse_array_of_strings(value);
+      } else if (!value.empty() && value.front() == '"') {
+        size_t pos = 0;
+        auto s = parse_string_value(value, pos);
+        if (s) vals = split_csv(*s);
+      } else {
+        vals = split_csv(value);
+      }
+      if (!vals.empty()) {
+        cfg.args.excludes = vals;
+        cfg.present.excludes = true;
       }
       continue;
     }
