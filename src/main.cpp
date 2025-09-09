@@ -551,7 +551,7 @@ int main(int argc, char **argv) {
   std::cout << std::endl;
 
   for (const auto &r : all_rows) {
-    std::string suffix = "@" + std::to_string(r.fn.row + 1);
+    std::string suffix = " @ " + std::to_string(r.fn.row + 1);
     std::string base = r.fn.name;
     std::string fn_name = base + suffix;
     if (static_cast<int>(fn_name.size()) > fn_w) {
