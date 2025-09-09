@@ -113,3 +113,27 @@ target_link_libraries(cognity PRIVATE
   ts_cpp
   tree_sitter
 )
+
+# Test runner mirroring complexipy's expectations for sample Python files
+add_executable(cognity_tests
+  tests/test_complexity.cpp
+  src/cognitive_complexity.cpp
+  src/builders/python_gsg_builder.cpp
+  src/builders/javascript_gsg_builder.cpp
+  src/builders/c_gsg_builder.cpp
+  src/gitignore.cpp
+  src/file_operations.cpp
+  src/cli_arguments.cpp
+  src/config.cpp
+)
+target_link_libraries(cognity_tests PRIVATE
+  ts_python
+  ts_javascript
+  ts_typescript
+  ts_c
+  ts_cpp
+  tree_sitter
+)
+
+enable_testing()
+add_test(NAME cognity_complexity_tests COMMAND cognity_tests)

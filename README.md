@@ -50,6 +50,8 @@ Key options
 - `-q,  --quiet`: print only offenders (unless `-i`).
 - `-i,  --ignore-complexity`: do not enforce the threshold.
 - `-s,  --sort <asc|desc|name>`: sort order (default name).
+  - `asc`/`desc`: globally sort functions across all files by complexity (text, JSON, CSV).
+  - `name`: sort by file name (then function name). Text, JSON, and CSV outputs print a single global table sorted by file and function, same layout as `asc/desc`.
 - `-d,  --detail <low|normal>`: output detail (default normal).
 - `-csv, --output-csv`: CSV output.
 - `-json, --output-json`: JSON output.
