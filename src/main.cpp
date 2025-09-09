@@ -189,7 +189,6 @@ static void collect_dir_with_gitignore(const std::filesystem::path &dir,
                                        std::vector<std::string> &out,
                                        std::vector<ignore::RulesFile> &stack) {
   namespace fs = std::filesystem;
-  // Load .gitignore for this directory, if any
   auto rf = ignore::load_rules_for_dir(dir);
   bool pushed = !rf.rules.empty();
   if (pushed) stack.push_back(std::move(rf));
@@ -204,13 +203,10 @@ static void collect_dir_with_gitignore(const std::filesystem::path &dir,
     bool is_reg = ent.is_regular_file(ec);
     if (ec) is_reg = false;
 
-    // Skip the .git directory itself regardless
     if (is_dir && p.filename() == ".git") continue;
 
     if (ignore::is_ignored(stack, p, is_dir)) {
-      // If directory is ignored, do not recurse
       if (is_dir) continue;
-      // If file is ignored, skip
       if (is_reg) continue;
     }
 
@@ -252,10 +248,8 @@ static void collect_source_files(const std::vector<std::string> &inputs,
 }
 
 int main(int argc, char **argv) {
-  // Read config if present
   LoadedConfig file_cfg = load_cognity_toml("cognity.toml");
 
-  // Parse CLI in relaxed mode to support config-only usage
   std::vector<std::string> args = args_to_string(argv, argc);
   CLI_PARSE_RESULT parsed;
   try {
@@ -269,7 +263,6 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  // If help requested, show help regardless of config
   if (parsed.has_help && parsed.args.show_help) {
     std::cout
         << "Usage: cognity <paths...> [options]\n"
@@ -335,7 +328,6 @@ int main(int argc, char **argv) {
   if (parsed.has_lang) cli_args.languages = parsed.args.languages;
   if (parsed.has_paths) cli_args.paths = parsed.args.paths;
 
-  // Validate paths availability
   if (cli_args.paths.empty()) {
     term::Painter p;
     p.init(false, false);
@@ -349,7 +341,6 @@ int main(int argc, char **argv) {
   TSParser *parser = ts_parser_new();
   std::string source_code;
 
-  // Expand inputs: allow directories and language filtering
   std::vector<std::string> files;
   collect_source_files(cli_args.paths, cli_args.languages, files);
   if (files.empty()) {
@@ -362,7 +353,6 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  // If JSON/CSV is requested, aggregate across files first
   struct Row {
     std::string file;
     FunctionComplexity fn;
@@ -393,7 +383,6 @@ int main(int argc, char **argv) {
         break;
       }
       default:
-        // Should not happen because we pre-filter files
         continue;
     }
     try {
@@ -410,7 +399,6 @@ int main(int argc, char **argv) {
     std::vector<FunctionComplexity> functions_complexity =
         functions_complexity_file(source_code, parser, lang);
 
-    // Sorting within a file according to CLI preference
     auto cmp_name = [](const FunctionComplexity &a,
                        const FunctionComplexity &b) { return a.name < b.name; };
     auto cmp_asc = [](const FunctionComplexity &a,
@@ -436,13 +424,11 @@ int main(int argc, char **argv) {
         break;
     }
 
-    // Collect rows and also print text output if not JSON/CSV
     for (const auto &fn : functions_complexity) {
       all_rows.push_back(Row{path, fn});
     }
   }
 
-  // Determine if any function exceeds the threshold (for exit status)
   bool any_exceeds = false;
   if (!cli_args.ignore_complexity) {
     for (const auto &r : all_rows) {
@@ -453,8 +439,42 @@ int main(int argc, char **argv) {
     }
   }
 
-  // Handle JSON/CSV outputs first (take precedence over text)
+  auto rows_cmp_name = [](const Row &a, const Row &b) {
+    if (a.file != b.file) return a.file < b.file;
+    if (a.fn.name != b.fn.name) return a.fn.name < b.fn.name;
+    return a.fn.row < b.fn.row;
+  };
+  auto rows_cmp_asc = [](const Row &a, const Row &b) {
+    if (a.fn.complexity != b.fn.complexity)
+      return a.fn.complexity < b.fn.complexity;
+    if (a.file != b.file) return a.file < b.file;
+    if (a.fn.name != b.fn.name) return a.fn.name < b.fn.name;
+    return a.fn.row < b.fn.row;
+  };
+  auto rows_cmp_desc = [](const Row &a, const Row &b) {
+    if (a.fn.complexity != b.fn.complexity)
+      return a.fn.complexity > b.fn.complexity;
+    if (a.file != b.file) return a.file < b.file;
+    if (a.fn.name != b.fn.name) return a.fn.name < b.fn.name;
+    return a.fn.row < b.fn.row;
+  };
+
+  auto apply_global_sort_for_rows = [&](std::vector<Row> &rows) {
+    switch (cli_args.sort) {
+      case NAME:
+        std::sort(rows.begin(), rows.end(), rows_cmp_name);
+        break;
+      case ASC:
+        std::sort(rows.begin(), rows.end(), rows_cmp_asc);
+        break;
+      case DESC:
+        std::sort(rows.begin(), rows.end(), rows_cmp_desc);
+        break;
+    }
+  };
+
   if (cli_args.output_json) {
+    apply_global_sort_for_rows(all_rows);
     std::cout << "[";
     for (size_t i = 0; i < all_rows.size(); ++i) {
       const auto &r = all_rows[i];
@@ -472,6 +492,7 @@ int main(int argc, char **argv) {
   }
 
   if (cli_args.output_csv) {
+    apply_global_sort_for_rows(all_rows);
     std::cout << "file,function,complexity,line" << std::endl;
     for (const auto &r : all_rows) {
       std::cout << r.file << "," << r.fn.name << "@" << r.fn.row + 1 << ","
@@ -491,10 +512,14 @@ int main(int argc, char **argv) {
                    all_rows.end());
   }
 
-  // Default minimal
-  // Re-group rows by file (preserve original in-file order from chosen sort)
-  std::stable_sort(all_rows.begin(), all_rows.end(),
-                   [](const Row &a, const Row &b) { return a.file < b.file; });
+  apply_global_sort_for_rows(all_rows);
+
+  term::Painter painter;
+  painter.init(false, false);
+
+  const std::string file_header = "File";
+  const std::string func_header = "Function";
+  const std::string cc_header = "cognitive complexity";
 
   // Helper to compute number of digits for unsigned integers
   auto digits = [](unsigned int v) -> int {
@@ -506,94 +531,64 @@ int main(int argc, char **argv) {
     return d;
   };
 
-  // Print grouped by file with dynamic column widths
-  std::size_t i = 0;
-  const std::string cc_header = "cognitive complexity";
-  while (i < all_rows.size()) {
-    static term::Painter painter;
-    static bool painter_initialized = false;
-    if (!painter_initialized) {
-      painter.init(false, false);
-      painter_initialized = true;
-    }
-    const std::string current_file = all_rows[i].file;
+  int file_w = static_cast<int>(file_header.size());
+  int fn_w = static_cast<int>(func_header.size());
+  int cc_w = static_cast<int>(cc_header.size());
+  for (const auto &r : all_rows) {
+    file_w = std::max(file_w, static_cast<int>(r.file.size()));
+    std::string suffix = "@" + std::to_string(r.fn.row + 1);
+    fn_w = std::max(fn_w, static_cast<int>(r.fn.name.size() + suffix.size()));
+    cc_w = std::max(cc_w, digits(r.fn.complexity));
+  }
+  if (cli_args.max_function_width > 0)
+    fn_w = std::max(8, std::min(fn_w, cli_args.max_function_width));
 
-    // Determine the range [i, j) for this file
-    std::size_t j = i;
-    // Column widths (ensure minimums based on header labels)
-    int max_cc_width = static_cast<int>(cc_header.size());
-    int max_fn_width = 8;  // at least length of "Function"
-    while (j < all_rows.size() && all_rows[j].file == current_file) {
-      const auto &fn = all_rows[j].fn;
-      max_cc_width = std::max(max_cc_width, digits(fn.complexity));
-      // Account for function name plus @line suffix in width
-      std::string suffix = "@" + std::to_string(fn.row + 1);
-      max_fn_width = std::max(max_fn_width,
-                              static_cast<int>(fn.name.size() + suffix.size()));
-      ++j;
-    }
+  if (painter.out_enabled) std::cout << term::code(term::Style::bold);
+  std::cout << std::left << std::setw(file_w) << file_header << "  "
+            << std::left << std::setw(fn_w) << func_header << "  " << std::left
+            << std::setw(cc_w) << cc_header;
+  if (painter.out_enabled) std::cout << term::code(term::Style::reset);
+  std::cout << std::endl;
 
-    // Apply optional truncation for function column
-    if (cli_args.max_function_width > 0) {
-      // Keep at least header width
-      max_fn_width =
-          std::max(8, std::min(max_fn_width, cli_args.max_function_width));
-    }
-
-    if (i) std::cout << "\n";
-    painter.print(std::cout, term::Style::cyan, current_file);
-    std::cout << std::endl;
-    if (painter.out_enabled) std::cout << term::code(term::Style::bold);
-    std::cout << "  " << std::left << std::setw(max_fn_width) << "Function"
-              << std::left << "  " << std::setw(max_cc_width) << cc_header;
-    if (painter.out_enabled) std::cout << term::code(term::Style::reset);
-    std::cout << std::endl;
-
-    for (std::size_t k = i; k < j; ++k) {
-      const auto &r = all_rows[k];
-      std::string suffix = "@" + std::to_string(r.fn.row + 1);
-      std::string base = r.fn.name;
-      std::string fn_name = base + suffix;
-      if (static_cast<int>(fn_name.size()) > max_fn_width) {
-        int avail = max_fn_width - static_cast<int>(suffix.size());
-        if (avail > 3) {
-          fn_name =
-              base.substr(0, static_cast<size_t>(avail - 3)) + "..." + suffix;
-        } else if (avail > 0) {
-          fn_name = base.substr(0, static_cast<size_t>(avail)) + suffix;
-        } else {
-          fn_name = suffix.size() > static_cast<size_t>(max_fn_width)
-                        ? suffix.substr(0, static_cast<size_t>(max_fn_width))
-                        : suffix;
-        }
+  for (const auto &r : all_rows) {
+    std::string suffix = "@" + std::to_string(r.fn.row + 1);
+    std::string base = r.fn.name;
+    std::string fn_name = base + suffix;
+    if (static_cast<int>(fn_name.size()) > fn_w) {
+      int avail = fn_w - static_cast<int>(suffix.size());
+      if (avail > 3) {
+        fn_name =
+            base.substr(0, static_cast<size_t>(avail - 3)) + "..." + suffix;
+      } else if (avail > 0) {
+        fn_name = base.substr(0, static_cast<size_t>(avail)) + suffix;
+      } else {
+        fn_name = suffix.size() > static_cast<size_t>(fn_w)
+                      ? suffix.substr(0, static_cast<size_t>(fn_w))
+                      : suffix;
       }
+    }
 
-      std::cout << "  " << std::left << std::setw(max_fn_width) << fn_name
-                << std::left << "  ";
-      bool exceeds =
-          r.fn.complexity > (unsigned)cli_args.max_complexity_allowed;
+    std::cout << std::left << std::setw(file_w) << r.file << "  " << std::left
+              << std::setw(fn_w) << fn_name << "  ";
+    bool exceeds = r.fn.complexity > (unsigned)cli_args.max_complexity_allowed;
+    if (painter.out_enabled) {
+      std::cout << term::code(exceeds ? term::Style::red : term::Style::green)
+                << std::setw(cc_w) << r.fn.complexity
+                << term::code(term::Style::reset);
+    } else {
+      std::cout << std::setw(cc_w) << r.fn.complexity;
+    }
+    if ((!cli_args.ignore_complexity) && exceeds) {
+      std::string note =
+          "  (exceeds " + std::to_string(cli_args.max_complexity_allowed) + ")";
       if (painter.out_enabled) {
-        std::cout << term::code(exceeds ? term::Style::red : term::Style::green)
-                  << std::setw(max_cc_width) << r.fn.complexity
+        std::cout << term::code(term::Style::red) << note
                   << term::code(term::Style::reset);
       } else {
-        std::cout << std::setw(max_cc_width) << r.fn.complexity;
+        std::cout << note;
       }
-      if ((!cli_args.ignore_complexity) && exceeds) {
-        std::string note = "  (exceeds " +
-                           std::to_string(cli_args.max_complexity_allowed) +
-                           ")";
-        if (painter.out_enabled) {
-          std::cout << term::code(term::Style::red) << note
-                    << term::code(term::Style::reset);
-        } else {
-          std::cout << note;
-        }
-      }
-      std::cout << std::endl;
     }
-
-    i = j;
+    std::cout << std::endl;
   }
 
   ts_parser_delete(parser);

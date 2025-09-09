@@ -120,6 +120,22 @@ std::vector<GSGNode> PythonGSGBuilder::build_functions(TSNode root,
     auto t = node_type(child);
     if (t == "function_definition") {
       funcs.emplace_back(build_function(child, source));
+    } else if (t == "decorated_definition") {
+      // Unwrap decorated definitions
+      TSNode def = ts_node_child_by_field_name(child, "definition", 10);
+      if (!ts_node_is_null(def) && node_type(def) == "function_definition")
+        funcs.emplace_back(build_function(def, source));
+      else if (!ts_node_is_null(def) && node_type(def) == "class_definition") {
+        TSNode body = ts_node_child_by_field_name(def, "body", 4);
+        if (!ts_node_is_null(body)) {
+          int m = ts_node_named_child_count(body);
+          for (int j = 0; j < m; ++j) {
+            TSNode member = ts_node_named_child(body, j);
+            if (node_type(member) == "function_definition")
+              funcs.emplace_back(build_function(member, source));
+          }
+        }
+      }
     } else if (t == "class_definition") {
       // Collect nested functions inside classes too
       TSNode body = ts_node_child_by_field_name(child, "body", 4);
@@ -144,7 +160,27 @@ GSGNode PythonGSGBuilder::build_function(TSNode node, const string &source) {
 
   TSNode body = ts_node_child_by_field_name(node, "body", 4);
   if (!ts_node_is_null(body)) {
-    build_block_children(body, source, f.children, /*nesting=*/0);
+    // Detect decorator-factory pattern at definition level: exactly two
+    // statements in body, first is a function_definition and second is a
+    // return_statement. If so, flatten the inner function body into this
+    // function so its complexity matches complexipy's behavior.
+    bool flattened = false;
+    int bn = ts_node_named_child_count(body);
+    if (bn == 2) {
+      TSNode first = ts_node_named_child(body, 0);
+      TSNode second = ts_node_named_child(body, 1);
+      if (node_type(first) == "function_definition" &&
+          node_type(second) == "return_statement") {
+        TSNode inner_body = ts_node_child_by_field_name(first, "body", 4);
+        if (!ts_node_is_null(inner_body)) {
+          build_block_children(inner_body, source, f.children, 0);
+          flattened = true;
+        }
+      }
+    }
+    if (!flattened) {
+      build_block_children(body, source, f.children, 0);
+    }
   }
   return f;
 }
@@ -176,32 +212,96 @@ void PythonGSGBuilder::build_block_children(TSNode block, const string &source,
         }
       }
     } else if (t == "try_statement") {
-      // body
+      // Wrap try-body in a Try node to increase nesting in compute phase
       TSNode body = ts_node_child_by_field_name(stmt, "body", 4);
-      if (!ts_node_is_null(body))
-        build_block_children(body, source, out, nesting + 1);
-      // handlers
+      if (!ts_node_is_null(body)) {
+        GSGNode tr;
+        tr.kind = GSGNodeKind::Try;
+        tr.loc = loc_from_node(stmt);
+        build_block_children(body, source, tr.children, nesting + 1);
+        out.emplace_back(std::move(tr));
+      }
+      // handlers, else, finally as children
       int m = ts_node_named_child_count(stmt);
       for (int j = 0; j < m; ++j) {
         TSNode ch = ts_node_named_child(stmt, j);
-        if (node_type(ch) == "except_clause") {
+        string cht = node_type(ch);
+        if (cht == "except_clause") {
           GSGNode ex;
           ex.kind = GSGNodeKind::Except;
           ex.loc = loc_from_node(ch);
           ex.addl_cost = 1;
           TSNode exbody = ts_node_child_by_field_name(ch, "body", 4);
+          if (ts_node_is_null(exbody))
+            exbody = ts_node_child_by_field_name(ch, "consequence", 11);
+          if (ts_node_is_null(exbody)) {
+            int xcn = ts_node_named_child_count(ch);
+            for (int xi = 0; xi < xcn && ts_node_is_null(exbody); ++xi) {
+              TSNode cand = ts_node_named_child(ch, xi);
+              if (node_type(cand) == "block") exbody = cand;
+            }
+          }
+          // Fallback: the handler body may appear as the immediate next sibling
+          // block
+          if (ts_node_is_null(exbody) && j + 1 < m) {
+            TSNode next = ts_node_named_child(stmt, j + 1);
+            if (node_type(next) == "block") {
+              exbody = next;
+              ++j;  // consume the block so it isn't processed again
+            }
+          }
           if (!ts_node_is_null(exbody))
             build_block_children(exbody, source, ex.children, nesting + 1);
           out.emplace_back(std::move(ex));
+        } else if (cht == "else_clause") {
+          TSNode elbody = ts_node_child_by_field_name(ch, "body", 4);
+          if (ts_node_is_null(elbody)) {
+            int en = ts_node_named_child_count(ch);
+            for (int ei = 0; ei < en && ts_node_is_null(elbody); ++ei) {
+              TSNode cand = ts_node_named_child(ch, ei);
+              if (node_type(cand) == "block") elbody = cand;
+            }
+          }
+          if (ts_node_is_null(elbody) && j + 1 < m) {
+            TSNode next = ts_node_named_child(stmt, j + 1);
+            if (node_type(next) == "block") {
+              elbody = next;
+              ++j;
+            }
+          }
+          if (!ts_node_is_null(elbody)) {
+            GSGNode el;
+            el.kind = GSGNodeKind::Else;
+            el.loc = loc_from_node(ch);
+            build_block_children(elbody, source, el.children, nesting + 1);
+            out.emplace_back(std::move(el));
+          }
+        } else if (cht == "finally_clause") {
+          TSNode fibody = ts_node_child_by_field_name(ch, "body", 4);
+          if (ts_node_is_null(fibody)) {
+            int fnn = ts_node_named_child_count(ch);
+            for (int fi = 0; fi < fnn && ts_node_is_null(fibody); ++fi) {
+              TSNode cand = ts_node_named_child(ch, fi);
+              if (node_type(cand) == "block") fibody = cand;
+            }
+          }
+          if (ts_node_is_null(fibody) && j + 1 < m) {
+            TSNode next = ts_node_named_child(stmt, j + 1);
+            if (node_type(next) == "block") {
+              fibody = next;
+              ++j;
+            }
+          }
+          if (!ts_node_is_null(fibody)) {
+            GSGNode fin;
+            fin.kind = GSGNodeKind::Finally;
+            fin.loc = loc_from_node(ch);
+            build_block_children(fibody, source, fin.children, nesting + 1);
+            out.emplace_back(std::move(fin));
+          }
         }
       }
-      // else and finally
-      TSNode orelse = ts_node_child_by_field_name(stmt, "alternative", 11);
-      if (!ts_node_is_null(orelse))
-        build_block_children(orelse, source, out, nesting + 1);
-      TSNode finalizer = ts_node_child_by_field_name(stmt, "finalizer", 9);
-      if (!ts_node_is_null(finalizer))
-        build_block_children(finalizer, source, out, nesting + 1);
+      // all handled in the loop above
     } else if (t == "return_statement") {
       TSNode value = ts_node_named_child(stmt, 0);
       if (!ts_node_is_null(value) && node_type(value) == "expression") {
@@ -355,9 +455,9 @@ void PythonGSGBuilder::build_block_children(TSNode block, const string &source,
           }
         }
       }
-    } else if (t == "function_definition")
+    } else if (t == "function_definition") {
       out.emplace_back(build_function(stmt, source));
-    else {
+    } else {
       // ignore
     }
   }
@@ -371,7 +471,7 @@ GSGNode PythonGSGBuilder::build_for(TSNode node, const string &source,
   g.loc = loc_from_node(node);
   TSNode body = ts_node_child_by_field_name(node, "body", 4);
   if (!ts_node_is_null(body))
-    build_block_children(body, source, g.children, /*nesting=*/nesting + 1);
+    build_block_children(body, source, g.children, nesting + 1);
   return g;
 }
 
@@ -383,11 +483,11 @@ GSGNode PythonGSGBuilder::build_while(TSNode node, const string &source,
 
   TSNode cond = ts_node_child_by_field_name(node, "condition", 9);
   if (!ts_node_is_null(cond))
-    g.addl_cost += count_bool_ops_expr(cond, /*nesting=*/nesting, source);
+    g.addl_cost += count_bool_ops_expr(cond, nesting, source);
 
   TSNode body = ts_node_child_by_field_name(node, "body", 4);
   if (!ts_node_is_null(body))
-    build_block_children(body, source, g.children, /*nesting=*/nesting + 1);
+    build_block_children(body, source, g.children, nesting + 1);
   return g;
 }
 
@@ -399,11 +499,11 @@ GSGNode PythonGSGBuilder::build_if(TSNode node, const string &source,
 
   TSNode cond = ts_node_child_by_field_name(node, "condition", 9);
   if (!ts_node_is_null(cond))
-    g.addl_cost += count_bool_ops_expr(cond, /*nesting=*/nesting, source);
+    g.addl_cost += count_bool_ops_expr(cond, nesting, source);
 
   TSNode cons = ts_node_child_by_field_name(node, "consequence", 11);
   if (!ts_node_is_null(cons))
-    build_block_children(cons, source, g.children, /*nesting=*/nesting + 1);
+    build_block_children(cons, source, g.children, nesting + 1);
 
   // Alternatives: multiple elif_clause and optionally else_clause
   int n = ts_node_named_child_count(node);
@@ -417,12 +517,10 @@ GSGNode PythonGSGBuilder::build_if(TSNode node, const string &source,
       eif.loc = loc_from_node(ch);
       TSNode econd = ts_node_child_by_field_name(ch, "condition", 9);
       if (!ts_node_is_null(econd))
-        eif.addl_cost +=
-            count_bool_ops_expr(econd, /*nesting=*/nesting, source);
+        eif.addl_cost += count_bool_ops_expr(econd, nesting, source);
       TSNode ebody = ts_node_child_by_field_name(ch, "consequence", 11);
       if (!ts_node_is_null(ebody))
-        build_block_children(ebody, source, eif.children,
-                             /*nesting=*/nesting + 1);
+        build_block_children(ebody, source, eif.children, nesting + 1);
       g.children.emplace_back(std::move(eif));
     } else if (t == "else_clause") {
       GSGNode el;
@@ -430,8 +528,7 @@ GSGNode PythonGSGBuilder::build_if(TSNode node, const string &source,
       el.loc = loc_from_node(ch);
       TSNode ebody = ts_node_child_by_field_name(ch, "body", 4);
       if (!ts_node_is_null(ebody))
-        build_block_children(ebody, source, el.children,
-                             /*nesting=*/nesting + 1);
+        build_block_children(ebody, source, el.children, nesting + 1);
       g.children.emplace_back(std::move(el));
     }
   }

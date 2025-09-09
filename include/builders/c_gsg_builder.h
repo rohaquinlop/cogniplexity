@@ -22,7 +22,7 @@ class CLikeGSGBuilder : public IBuilder {
   GSGNode build_function(TSNode n, const std::string &src,
                          const std::string &qual);
   void build_block_children(TSNode n, const std::string &src,
-                            std::vector<GSGNode> &out);
+                            std::vector<GSGNode> &out, int nesting = 0);
   GSGNode build_if(TSNode n, const std::string &src);
   GSGNode build_while(TSNode n, const std::string &src);
   GSGNode build_for(TSNode n, const std::string &src);

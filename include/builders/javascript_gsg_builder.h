@@ -15,7 +15,7 @@ class JavaScriptGSGBuilder : public IBuilder {
 
   GSGNode build_function(TSNode n, const std::string &src);
   void build_block_children(TSNode n, const std::string &src,
-                            std::vector<GSGNode> &out);
+                            std::vector<GSGNode> &out, int nesting);
   GSGNode build_if(TSNode n, const std::string &src);
   GSGNode build_while(TSNode n, const std::string &src);
   GSGNode build_for(TSNode n, const std::string &src);
