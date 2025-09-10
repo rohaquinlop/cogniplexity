@@ -85,13 +85,15 @@ int main(int argc, char **argv) {
   };
 
   if (cli_args.output_json) {
-    report::print_json(all_rows, cli_args.sort);
+    report::print_json(all_rows, cli_args.sort, cli_args.max_complexity_allowed,
+                       cli_args.ignore_complexity, cli_args.detail);
     ts_parser_delete(parser);
     return any_exceeds ? 2 : 0;
   }
 
   if (cli_args.output_csv) {
-    report::print_csv(all_rows, cli_args.sort);
+    report::print_csv(all_rows, cli_args.sort, cli_args.max_complexity_allowed,
+                      cli_args.ignore_complexity, cli_args.detail);
     ts_parser_delete(parser);
     return any_exceeds ? 2 : 0;
   }

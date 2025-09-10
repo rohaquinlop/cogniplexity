@@ -52,10 +52,16 @@ struct Row {
 void sort_functions(std::vector<FunctionComplexity> &functions, SortType sort);
 
 // Render rows as JSON array to stdout; applies global sort.
-void print_json(std::vector<Row> rows, SortType sort);
+// If detail is LOW and not ignoring complexity, only offenders are printed.
+void print_json(std::vector<Row> rows, SortType sort,
+                int max_complexity_allowed, bool ignore_complexity,
+                DetailType detail);
 
 // Render rows as CSV to stdout with header; applies global sort.
-void print_csv(std::vector<Row> rows, SortType sort);
+// If detail is LOW and not ignoring complexity, only offenders are printed.
+void print_csv(std::vector<Row> rows, SortType sort,
+               int max_complexity_allowed, bool ignore_complexity,
+               DetailType detail);
 
 // Compute if any row exceeds the threshold, honoring ignore flag.
 bool any_exceeds(const std::vector<Row> &rows, int max_complexity_allowed,

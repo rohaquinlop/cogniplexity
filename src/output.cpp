@@ -175,7 +175,15 @@ void sort_functions(std::vector<FunctionComplexity> &functions, SortType sort) {
   }
 }
 
-void print_json(std::vector<Row> rows, SortType sort) {
+void print_json(std::vector<Row> rows, SortType sort,
+                int max_complexity_allowed, bool ignore_complexity,
+                DetailType detail) {
+  if (detail == LOW && !ignore_complexity) {
+    rows.erase(std::remove_if(rows.begin(), rows.end(), [&](const Row &r) {
+                  return r.fn.complexity <= (unsigned)max_complexity_allowed;
+                }),
+               rows.end());
+  }
   sort_rows(rows, sort);
   std::cout << "[";
   for (size_t i = 0; i < rows.size(); ++i) {
@@ -191,7 +199,15 @@ void print_json(std::vector<Row> rows, SortType sort) {
   std::cout << "]" << '\n';
 }
 
-void print_csv(std::vector<Row> rows, SortType sort) {
+void print_csv(std::vector<Row> rows, SortType sort,
+               int max_complexity_allowed, bool ignore_complexity,
+               DetailType detail) {
+  if (detail == LOW && !ignore_complexity) {
+    rows.erase(std::remove_if(rows.begin(), rows.end(), [&](const Row &r) {
+                  return r.fn.complexity <= (unsigned)max_complexity_allowed;
+                }),
+               rows.end());
+  }
   sort_rows(rows, sort);
   std::cout << "file,function,complexity,line" << '\n';
   for (const auto &r : rows) {
