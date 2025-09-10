@@ -52,7 +52,7 @@ Key options
 - `-s,  --sort <asc|desc|name>`: sort order (default name).
   - `asc`/`desc`: globally sort functions across all files by complexity (text, JSON, CSV).
   - `name`: sort by file name (then function name). Text, JSON, and CSV outputs print a single global table sorted by file and function, same layout as `asc/desc`.
-- `-d,  --detail <low|normal>`: output detail (default normal). In `low` detail, only functions exceeding the threshold are shown (unless `-i`).
+- `-d,  --detail <low|normal>`: output detail (default normal). In `low` detail, only functions exceeding the threshold are shown (text, JSON, CSV), unless `-i`.
 - `-csv, --output-csv`: CSV output.
 - `-json, --output-json`: JSON output.
 - `-x,  --exclude <list>`: comma‑separated files or directories to exclude.
