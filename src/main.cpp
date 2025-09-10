@@ -358,6 +358,7 @@ int main(int argc, char **argv) {
            "  -fw, --max-fn-width <int>     Truncate function names to width "
            "when printing\n"
            "  -h,  --help                   Show this help and exit\n"
+           "       --version                Show version and exit\n"
            "\n"
            "Note: place options after paths; directories are scanned "
            "recursively.\n"
@@ -365,6 +366,15 @@ int main(int argc, char **argv) {
            "Also supports a cognity.toml file in the working directory\n"
            "to provide default values for the same options. CLI options\n"
            "override the config file.\n";
+    return 0;
+  }
+
+  if (parsed.has_version && parsed.args.show_version) {
+#ifdef COGNITY_VERSION
+    std::cout << "cognity " << COGNITY_VERSION << std::endl;
+#else
+    std::cout << "cognity" << std::endl;
+#endif
     return 0;
   }
 

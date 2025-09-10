@@ -25,6 +25,8 @@ struct CLI_ARGUMENTS {
   int max_function_width = 0;  // --max-fn-width -fw
   // Show help/usage and exit
   bool show_help = false;  // --help -h
+  // Show version and exit
+  bool show_version = false;  // --version
   // Optional filter: if non-empty, only these languages are considered
   std::vector<Language> languages;
 };
@@ -46,6 +48,7 @@ struct CLI_PARSE_RESULT {
   bool has_max_fn_width = false;
   bool has_lang = false;
   bool has_help = false;
+  bool has_version = false;
 };
 
 CLI_PARSE_RESULT parse_arguments_relaxed(std::vector<std::string>&);

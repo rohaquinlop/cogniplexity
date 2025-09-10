@@ -58,6 +58,7 @@ Key options
 - `-x,  --exclude <list>`: comma‑separated files or directories to exclude.
 - `-fw, --max-fn-width <n>`: truncate printed function column to at most `n`.
 - `-h,  --help`: show help and exit.
+ - `--version`: show version and exit.
 
 Notes
 - Unsupported files are skipped.

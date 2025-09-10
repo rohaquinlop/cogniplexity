@@ -46,12 +46,15 @@ static bool is_max_fn_width(std::string &s) {
 
 static bool is_help(std::string &s) { return s == "--help" || s == "-h"; }
 
+static bool is_version(std::string &s) { return s == "--version"; }
+
 static bool is_exclude(std::string &s) { return s == "--exclude" || s == "-x"; }
 
 bool is_argument(std::string &s) {
   return is_max_complexity(s) or is_quiet(s) or is_ignore_complexity(s) or
          is_detail(s) or is_sort(s) or is_output_csv(s) or is_output_json(s) ||
-         is_lang(s) || is_exclude(s) || is_max_fn_width(s) || is_help(s);
+         is_lang(s) || is_exclude(s) || is_max_fn_width(s) || is_help(s) ||
+         is_version(s);
 }
 
 static Language language_from_token(std::string tok) {
@@ -117,6 +120,7 @@ CLI_ARGUMENTS load_from_vs_arguments(std::vector<std::string> &arguments) {
   std::vector<Language> langs_filter;
   int max_function_width = 0;
   bool show_help = false;
+  bool show_version = false;
 
   for (i = 0; i < arguments.size() && reading_paths; i++) {
     if (!is_argument(arguments[i]))
@@ -245,6 +249,7 @@ CLI_ARGUMENTS load_from_vs_arguments(std::vector<std::string> &arguments) {
                        output_json,
                        max_function_width,
                        show_help,
+                       show_version,
                        langs_filter};
 }
 
@@ -266,6 +271,7 @@ CLI_PARSE_RESULT parse_arguments_relaxed(std::vector<std::string> &arguments) {
   std::vector<Language> langs_filter;
   int max_function_width = 0;
   bool show_help = false;
+  bool show_version = false;
 
   for (i = 0; i < arguments.size() && reading_paths; i++) {
     if (!is_argument(arguments[i]))
@@ -302,6 +308,9 @@ CLI_PARSE_RESULT parse_arguments_relaxed(std::vector<std::string> &arguments) {
     } else if (is_help(arguments[i])) {
       show_help = true;
       res.has_help = true;
+    } else if (is_version(arguments[i])) {
+      show_version = true;
+      res.has_version = true;
     } else if (is_lang(arguments[i])) {
       if (++i >= arguments.size())
         throw std::invalid_argument("Expected language list after --lang/-l");
@@ -392,6 +401,7 @@ CLI_PARSE_RESULT parse_arguments_relaxed(std::vector<std::string> &arguments) {
                            output_json,
                            max_function_width,
                            show_help,
+                           show_version,
                            langs_filter};
   return res;
 }

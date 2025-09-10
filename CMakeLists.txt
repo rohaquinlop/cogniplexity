@@ -114,6 +114,8 @@ target_link_libraries(cognity PRIVATE
   tree_sitter
 )
 
+target_compile_definitions(cognity PRIVATE COGNITY_VERSION="${PROJECT_VERSION}")
+
 # Test runner mirroring complexipy's expectations for sample Python files
 add_executable(cognity_tests
   tests/test_complexity.cpp
