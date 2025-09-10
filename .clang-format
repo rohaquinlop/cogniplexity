@@ -1,0 +1,12 @@
+BasedOnStyle: Google
+# Project-specific tweaks
+ColumnLimit: 80
+IndentWidth: 2
+ContinuationIndentWidth: 2
+UseTab: Never
+# Google style places the '*' with the type (e.g., 'int* p')
+DerivePointerAlignment: false
+PointerAlignment: Left
+SortIncludes: true
+IncludeBlocks: Preserve
+

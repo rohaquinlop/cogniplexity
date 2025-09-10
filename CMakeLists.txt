@@ -93,6 +93,8 @@ ts_fetch_grammar(CPP https://github.com/tree-sitter/tree-sitter-cpp ${TS_CPP_TAG
 # Executable
 set(SOURCES
   "${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp"
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/output.cpp"
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/sourcing.cpp"
   "${CMAKE_CURRENT_SOURCE_DIR}/src/cli_arguments.cpp"
   "${CMAKE_CURRENT_SOURCE_DIR}/src/config.cpp"
   "${CMAKE_CURRENT_SOURCE_DIR}/src/file_operations.cpp"
