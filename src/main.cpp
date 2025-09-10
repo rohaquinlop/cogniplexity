@@ -98,7 +98,8 @@ int main(int argc, char **argv) {
 
   report::print_table(all_rows, cli_args.sort, cli_args.max_function_width,
                       cli_args.max_complexity_allowed,
-                      cli_args.ignore_complexity, cli_args.quiet);
+                      cli_args.ignore_complexity, cli_args.quiet,
+                      cli_args.detail);
 
   ts_parser_delete(parser);
 

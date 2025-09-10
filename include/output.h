@@ -66,8 +66,9 @@ bool any_exceeds(const std::vector<Row> &rows, int max_complexity_allowed,
 // max_complexity_allowed: used to mark and annotate exceeding functions.
 // ignore_complexity: if false, prints an "exceeds N" note for offenders.
 // quiet: if true and not ignoring complexity, only prints offenders.
+// detail: if LOW and not ignoring complexity, only prints offenders (like quiet).
 void print_table(std::vector<Row> rows, SortType sort, int max_fn_width,
                  int max_complexity_allowed, bool ignore_complexity,
-                 bool quiet);
+                 bool quiet, DetailType detail);
 
 }  // namespace report

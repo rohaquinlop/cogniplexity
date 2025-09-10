@@ -202,13 +202,15 @@ void print_csv(std::vector<Row> rows, SortType sort) {
 
 void print_table(std::vector<Row> rows, SortType sort, int max_fn_width,
                  int max_complexity_allowed, bool ignore_complexity,
-                 bool quiet) {
+                 bool quiet, DetailType detail) {
   sort_rows(rows, sort);
 
   term::Painter painter;
   painter.init(false, false);
 
-  if (quiet && !ignore_complexity) {
+  // In low detail or quiet mode (and not ignoring complexity),
+  // only display offenders that exceed the threshold.
+  if ((quiet || detail == LOW) && !ignore_complexity) {
     rows.erase(std::remove_if(rows.begin(), rows.end(),
                               [&](const Row &r) {
                                 return r.fn.complexity <=
