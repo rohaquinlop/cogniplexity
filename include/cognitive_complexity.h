@@ -5,7 +5,7 @@
 #include <iostream>
 #include <vector>
 
-#include "../tree-sitter/lib/include/tree_sitter/api.h"
+#include <tree_sitter/api.h>
 #include "./gsg.h"
 
 extern "C" {

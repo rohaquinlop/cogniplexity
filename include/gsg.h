@@ -6,7 +6,7 @@
 #include <string_view>
 #include <vector>
 
-#include "../tree-sitter/lib/include/tree_sitter/api.h"
+#include <tree_sitter/api.h>
 
 // Supported languages (extensible)
 enum class Language {

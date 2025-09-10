@@ -9,16 +9,25 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 
 # Grammars are always fetched from upstream (no vendored copies kept)
 
-# Libraries
-# tree-sitter core (vendored)
+include(FetchContent)
+
+# Pinned tree-sitter core version
+set(TS_CORE_TAG        "v0.22.6")
+
+# Fetch tree-sitter core (same approach as grammars)
+FetchContent_Declare(
+  tree_sitter_core
+  GIT_REPOSITORY https://github.com/tree-sitter/tree-sitter
+  GIT_TAG        ${TS_CORE_TAG}
+)
+FetchContent_MakeAvailable(tree_sitter_core)
+
 add_library(tree_sitter STATIC
-  tree-sitter/lib/src/lib.c
+  "${tree_sitter_core_SOURCE_DIR}/lib/src/lib.c"
 )
 target_include_directories(tree_sitter PUBLIC
-  "${CMAKE_CURRENT_SOURCE_DIR}/tree-sitter/lib/include"
+  "${tree_sitter_core_SOURCE_DIR}/lib/include"
 )
-
-include(FetchContent)
 
 # Pinned grammar versions (tags or commit SHAs).
 # To update, edit these values directly.
@@ -49,7 +58,6 @@ function(ts_add_grammar LANG GRAMMAR_DIR)
   add_library(ts_${LANG} STATIC ${srcs})
   target_include_directories(ts_${LANG} PUBLIC
     ${GRAMMAR_DIR}/src
-    ${CMAKE_CURRENT_SOURCE_DIR}/tree-sitter/lib/include
   )
   target_link_libraries(ts_${LANG} PUBLIC tree_sitter)
 endfunction()
@@ -63,8 +71,8 @@ function(ts_fetch_grammar LANG REPO TAG)
     GIT_REPOSITORY ${REPO}
     GIT_TAG        ${TAG}
   )
-  # Populate only; do not add as a subdirectory to avoid target name clashes
-  FetchContent_Populate(${FETCH_NAME})
+  # Populate (MakeAvailable is safe even if repo has no CMakeLists)
+  FetchContent_MakeAvailable(${FETCH_NAME})
   ts_add_grammar(${LANG_LOWER} ${${FETCH_NAME}_SOURCE_DIR})
 endfunction()
 
@@ -77,7 +85,7 @@ function(ts_fetch_grammar_subdir LANG REPO SUBDIR TAG)
     GIT_REPOSITORY ${REPO}
     GIT_TAG        ${TAG}
   )
-  FetchContent_Populate(${FETCH_NAME})
+  FetchContent_MakeAvailable(${FETCH_NAME})
   ts_add_grammar(${LANG_LOWER} ${${FETCH_NAME}_SOURCE_DIR}/${SUBDIR})
 endfunction()
 
