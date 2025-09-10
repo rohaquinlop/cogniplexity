@@ -12,7 +12,7 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 include(FetchContent)
 
 # Pinned tree-sitter core version
-set(TS_CORE_TAG        "v0.22.6")
+set(TS_CORE_TAG        "v0.25.9")
 
 # Fetch tree-sitter core (same approach as grammars)
 FetchContent_Declare(
