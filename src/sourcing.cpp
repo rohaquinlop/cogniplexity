@@ -68,7 +68,7 @@ static void collect_dir_with_gitignore(
         std::error_code ec2;
         auto rel = fs::relative(p, ed, ec2);
         if (!ec2 && !rel.empty() && rel.is_relative() &&
-            rel.native().rfind("..", 0) != 0) {
+            rel.generic_string().rfind("..", 0) != 0) {
           skip_dir = true;
           break;
         }

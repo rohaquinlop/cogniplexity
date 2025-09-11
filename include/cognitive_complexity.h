@@ -46,8 +46,6 @@ struct CodeComplexity {
   std::vector<FunctionComplexity> functions;
 };
 
-enum BoolOp { And, Or, Not, Unknown };
-
 std::vector<FunctionComplexity> functions_complexity_file(const std::string&,
                                                           TSParser*, Language);
 
