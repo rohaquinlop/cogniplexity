@@ -2,6 +2,10 @@
 
 #include <tree_sitter/api.h>
 
+#ifdef __linux__
+#include <cstring>
+#endif
+
 #include <string>
 #include <vector>
 
