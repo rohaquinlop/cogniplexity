@@ -1,6 +1,10 @@
 #ifndef COGNITIVE_COMPLEXITY_H
 #define COGNITIVE_COMPLEXITY_H
 
+#ifdef __linux__
+#include <cstring>
+#endif
+
 #include <tree_sitter/api.h>
 
 #include <vector>
