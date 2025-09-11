@@ -1,6 +1,10 @@
 #ifndef COGNITIVE_COMPLEXITY_H
 #define COGNITIVE_COMPLEXITY_H
 
+#ifdef __linux__
+#include <cstring>
+#endif
+
 #include <tree_sitter/api.h>
 
 #include <vector>
@@ -41,8 +45,6 @@ struct FileComplexity {
 struct CodeComplexity {
   std::vector<FunctionComplexity> functions;
 };
-
-enum BoolOp { And, Or, Not, Unknown };
 
 std::vector<FunctionComplexity> functions_complexity_file(const std::string&,
                                                           TSParser*, Language);
