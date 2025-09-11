@@ -4,6 +4,8 @@ def test_try():
     try:
         a += 1
         b += 1
+        if a == 2:  # 1 (nested = 0)
+            a += 2
     except TypeError:  # 1 (nested = 0)
         if a is None:  # 2 (nested = 1)
             print("Caught a TypeError")

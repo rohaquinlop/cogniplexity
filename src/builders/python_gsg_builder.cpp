@@ -28,9 +28,6 @@ string_view PythonGSGBuilder::get_identifier(TSNode node,
   return slice_source(source, name);
 }
 
-// No-op helpers removed; we'll compute expression costs directly where needed
-
-// Boolean operator helpers (rough, language-agnostic text match)
 enum class BoolOp { And, Or, Not, Unknown };
 
 static BoolOp from_text_get_bool_op(string_view s) {
@@ -76,7 +73,6 @@ unsigned int PythonGSGBuilder::count_bool_operators(TSNode node,
   return complexity;
 }
 
-// General expression complexity similar to complexipy::count_bool_ops
 unsigned int PythonGSGBuilder::count_bool_ops_expr(TSNode node, int nesting,
                                                    const string &source) {
   if (ts_node_is_null(node)) return 0;
@@ -85,7 +81,7 @@ unsigned int PythonGSGBuilder::count_bool_ops_expr(TSNode node, int nesting,
     return 1 + count_bool_operators(node, source);
   }
   if (t == "not_operator") {
-    return 1;  // count negation
+    return 1;
   }
   if (t == "conditional_expression") {
     unsigned int c = 1 + static_cast<unsigned int>(nesting);
@@ -103,7 +99,6 @@ unsigned int PythonGSGBuilder::count_bool_ops_expr(TSNode node, int nesting,
           count_bool_ops_expr(ts_node_named_child(node, i), nesting, source);
     return total;
   }
-  // Default: recurse into named children to find nested constructs
   unsigned int total = 0;
   int m = ts_node_named_child_count(node);
   for (int i = 0; i < m; ++i)
@@ -121,7 +116,6 @@ std::vector<GSGNode> PythonGSGBuilder::build_functions(TSNode root,
     if (t == "function_definition") {
       funcs.emplace_back(build_function(child, source));
     } else if (t == "decorated_definition") {
-      // Unwrap decorated definitions
       TSNode def = ts_node_child_by_field_name(child, "definition", 10);
       if (!ts_node_is_null(def) && node_type(def) == "function_definition")
         funcs.emplace_back(build_function(def, source));
@@ -137,7 +131,6 @@ std::vector<GSGNode> PythonGSGBuilder::build_functions(TSNode root,
         }
       }
     } else if (t == "class_definition") {
-      // Collect nested functions inside classes too
       TSNode body = ts_node_child_by_field_name(child, "body", 4);
       if (!ts_node_is_null(body)) {
         int m = ts_node_named_child_count(body);
@@ -160,10 +153,6 @@ GSGNode PythonGSGBuilder::build_function(TSNode node, const string &source) {
 
   TSNode body = ts_node_child_by_field_name(node, "body", 4);
   if (!ts_node_is_null(body)) {
-    // Detect decorator-factory pattern at definition level: exactly two
-    // statements in body, first is a function_definition and second is a
-    // return_statement. If so, flatten the inner function body into this
-    // function so its complexity matches complexipy's behavior.
     bool flattened = false;
     int bn = ts_node_named_child_count(body);
     if (bn == 2) {
@@ -201,7 +190,6 @@ void PythonGSGBuilder::build_block_children(TSNode block, const string &source,
     else if (t == "if_statement")
       out.emplace_back(build_if(stmt, source, nesting));
     else if (t == "match_statement") {
-      // Traverse case bodies only (no base cost)
       int mc = ts_node_named_child_count(stmt);
       for (int k = 0; k < mc; ++k) {
         TSNode ch = ts_node_named_child(stmt, k);
@@ -212,7 +200,6 @@ void PythonGSGBuilder::build_block_children(TSNode block, const string &source,
         }
       }
     } else if (t == "try_statement") {
-      // Wrap try-body in a Try node to increase nesting in compute phase
       TSNode body = ts_node_child_by_field_name(stmt, "body", 4);
       if (!ts_node_is_null(body)) {
         GSGNode tr;
@@ -221,7 +208,6 @@ void PythonGSGBuilder::build_block_children(TSNode block, const string &source,
         build_block_children(body, source, tr.children, nesting + 1);
         out.emplace_back(std::move(tr));
       }
-      // handlers, else, finally as children
       int m = ts_node_named_child_count(stmt);
       for (int j = 0; j < m; ++j) {
         TSNode ch = ts_node_named_child(stmt, j);
@@ -241,13 +227,11 @@ void PythonGSGBuilder::build_block_children(TSNode block, const string &source,
               if (node_type(cand) == "block") exbody = cand;
             }
           }
-          // Fallback: the handler body may appear as the immediate next sibling
-          // block
           if (ts_node_is_null(exbody) && j + 1 < m) {
             TSNode next = ts_node_named_child(stmt, j + 1);
             if (node_type(next) == "block") {
               exbody = next;
-              ++j;  // consume the block so it isn't processed again
+              ++j;
             }
           }
           if (!ts_node_is_null(exbody))
@@ -301,7 +285,6 @@ void PythonGSGBuilder::build_block_children(TSNode block, const string &source,
           }
         }
       }
-      // all handled in the loop above
     } else if (t == "return_statement") {
       TSNode value = ts_node_named_child(stmt, 0);
       if (!ts_node_is_null(value) && node_type(value) == "expression") {
@@ -443,8 +426,6 @@ void PythonGSGBuilder::build_block_children(TSNode block, const string &source,
             out.emplace_back(std::move(e));
           }
         } else if (st == "conditional_expression") {
-          // Rare: bare ternary expression as a statement – count per complexipy
-          // as expression
           unsigned int cost = count_bool_ops_expr(sub, nesting, source);
           if (cost) {
             GSGNode e;
@@ -458,7 +439,6 @@ void PythonGSGBuilder::build_block_children(TSNode block, const string &source,
     } else if (t == "function_definition") {
       out.emplace_back(build_function(stmt, source));
     } else {
-      // ignore
     }
   }
 }
@@ -505,13 +485,11 @@ GSGNode PythonGSGBuilder::build_if(TSNode node, const string &source,
   if (!ts_node_is_null(cons))
     build_block_children(cons, source, g.children, nesting + 1);
 
-  // Alternatives: multiple elif_clause and optionally else_clause
   int n = ts_node_named_child_count(node);
   for (int i = 0; i < n; ++i) {
     TSNode ch = ts_node_named_child(node, i);
     string t = node_type(ch);
     if (t == "elif_clause") {
-      // Represent elif as ElseIf with its own body
       GSGNode eif;
       eif.kind = GSGNodeKind::ElseIf;
       eif.loc = loc_from_node(ch);

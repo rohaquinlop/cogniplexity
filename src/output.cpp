@@ -52,11 +52,10 @@ static inline bool stream_supports_color(std::ostream &os, bool is_stderr,
   FILE *f = is_stderr ? stderr : stdout;
   if (!ISATTY(FILENO(f))) return false;
 #ifdef _WIN32
-  // Use VT only if we enabled it; otherwise avoid raw escape codes
   return is_stderr ? cfg.ansi_enabled_stderr : cfg.ansi_enabled_stdout;
 #else
   (void)os;
-  return true;  // TTY on POSIX supports ANSI by default
+  return true;
 #endif
 }
 
@@ -85,14 +84,12 @@ const char *code(Style s) {
 }
 
 void Painter::init(bool json_mode, bool csv_mode) {
-  // If machine-readable outputs, disable colors regardless.
   if (json_mode || csv_mode) {
     out_enabled = false;
     err_enabled = false;
     return;
   }
 
-  // Try enabling VT on Windows; on POSIX this is a no-op.
   enable_win_vt_if_possible(cfg, true, true);
   out_enabled = stream_supports_color(std::cout, false, cfg);
   err_enabled = stream_supports_color(std::cerr, true, cfg);
@@ -179,9 +176,11 @@ void print_json(std::vector<Row> rows, SortType sort,
                 int max_complexity_allowed, bool ignore_complexity,
                 DetailType detail) {
   if (detail == LOW && !ignore_complexity) {
-    rows.erase(std::remove_if(rows.begin(), rows.end(), [&](const Row &r) {
-                  return r.fn.complexity <= (unsigned)max_complexity_allowed;
-                }),
+    rows.erase(std::remove_if(rows.begin(), rows.end(),
+                              [&](const Row &r) {
+                                return r.fn.complexity <=
+                                       (unsigned)max_complexity_allowed;
+                              }),
                rows.end());
   }
   sort_rows(rows, sort);
@@ -199,13 +198,14 @@ void print_json(std::vector<Row> rows, SortType sort,
   std::cout << "]" << '\n';
 }
 
-void print_csv(std::vector<Row> rows, SortType sort,
-               int max_complexity_allowed, bool ignore_complexity,
-               DetailType detail) {
+void print_csv(std::vector<Row> rows, SortType sort, int max_complexity_allowed,
+               bool ignore_complexity, DetailType detail) {
   if (detail == LOW && !ignore_complexity) {
-    rows.erase(std::remove_if(rows.begin(), rows.end(), [&](const Row &r) {
-                  return r.fn.complexity <= (unsigned)max_complexity_allowed;
-                }),
+    rows.erase(std::remove_if(rows.begin(), rows.end(),
+                              [&](const Row &r) {
+                                return r.fn.complexity <=
+                                       (unsigned)max_complexity_allowed;
+                              }),
                rows.end());
   }
   sort_rows(rows, sort);
@@ -217,15 +217,13 @@ void print_csv(std::vector<Row> rows, SortType sort,
 }
 
 void print_table(std::vector<Row> rows, SortType sort, int max_fn_width,
-                 int max_complexity_allowed, bool ignore_complexity,
-                 bool quiet, DetailType detail) {
+                 int max_complexity_allowed, bool ignore_complexity, bool quiet,
+                 DetailType detail) {
   sort_rows(rows, sort);
 
   term::Painter painter;
   painter.init(false, false);
 
-  // In low detail or quiet mode (and not ignoring complexity),
-  // only display offenders that exceed the threshold.
   if ((quiet || detail == LOW) && !ignore_complexity) {
     rows.erase(std::remove_if(rows.begin(), rows.end(),
                               [&](const Row &r) {

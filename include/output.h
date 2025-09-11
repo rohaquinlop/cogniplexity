@@ -16,7 +16,6 @@ struct ColorConfig {
   bool ansi_enabled_stderr = false;
 };
 
-// Return ANSI escape sequence for a given style (or empty string if disabled)
 const char *code(Style s);
 
 struct Painter {
@@ -24,7 +23,6 @@ struct Painter {
   bool out_enabled = false;
   bool err_enabled = false;
 
-  // Initialize color support based on TTY and output mode (json/csv disable)
   void init(bool json_mode, bool csv_mode);
 
   template <typename T>
@@ -48,33 +46,19 @@ struct Row {
   FunctionComplexity fn;
 };
 
-// Sort a list of functions according to CLI sort option.
 void sort_functions(std::vector<FunctionComplexity> &functions, SortType sort);
 
-// Render rows as JSON array to stdout; applies global sort.
-// If detail is LOW and not ignoring complexity, only offenders are printed.
 void print_json(std::vector<Row> rows, SortType sort,
                 int max_complexity_allowed, bool ignore_complexity,
                 DetailType detail);
 
-// Render rows as CSV to stdout with header; applies global sort.
-// If detail is LOW and not ignoring complexity, only offenders are printed.
-void print_csv(std::vector<Row> rows, SortType sort,
-               int max_complexity_allowed, bool ignore_complexity,
-               DetailType detail);
+void print_csv(std::vector<Row> rows, SortType sort, int max_complexity_allowed,
+               bool ignore_complexity, DetailType detail);
 
-// Compute if any row exceeds the threshold, honoring ignore flag.
 bool any_exceeds(const std::vector<Row> &rows, int max_complexity_allowed,
                  bool ignore_complexity);
-
-// Render a colorized table to stdout; applies global sort.
-// max_fn_width: if > 0, truncate function column to this width.
-// max_complexity_allowed: used to mark and annotate exceeding functions.
-// ignore_complexity: if false, prints an "exceeds N" note for offenders.
-// quiet: if true and not ignoring complexity, only prints offenders.
-// detail: if LOW and not ignoring complexity, only prints offenders (like quiet).
 void print_table(std::vector<Row> rows, SortType sort, int max_fn_width,
-                 int max_complexity_allowed, bool ignore_complexity,
-                 bool quiet, DetailType detail);
+                 int max_complexity_allowed, bool ignore_complexity, bool quiet,
+                 DetailType detail);
 
 }  // namespace report

@@ -58,7 +58,6 @@ bool is_argument(std::string &s) {
 }
 
 static Language language_from_token(std::string tok) {
-  // normalize
   std::transform(tok.begin(), tok.end(), tok.begin(),
                  [](unsigned char c) { return std::tolower(c); });
   if (tok == "py" || tok == "python") return Language::Python;
@@ -80,7 +79,6 @@ static void parse_languages_list(const std::string &value,
     std::string tok =
         value.substr(start, comma == std::string::npos ? std::string::npos
                                                        : (comma - start));
-    // trim spaces
     auto trim = [](std::string &s) {
       size_t a = s.find_first_not_of(" \t\n");
       size_t b = s.find_last_not_of(" \t\n");
@@ -96,7 +94,6 @@ static void parse_languages_list(const std::string &value,
       if (lang == Language::Unknown)
         throw std::invalid_argument("Unknown language in --lang: '" + tok +
                                     "'");
-      // Avoid duplicates
       if (std::find(out.begin(), out.end(), lang) == out.end())
         out.push_back(lang);
     }
@@ -131,7 +128,6 @@ CLI_ARGUMENTS load_from_vs_arguments(std::vector<std::string> &arguments) {
     }
   }
 
-  // Allow --help/-h without requiring paths
   if (!reading_paths && paths.empty()) {
     bool any_help = false;
     for (int j = i; j < arguments.size(); ++j) {
@@ -253,8 +249,6 @@ CLI_ARGUMENTS load_from_vs_arguments(std::vector<std::string> &arguments) {
                        langs_filter};
 }
 
-// Relaxed parsing that does not require at least one path and records presence
-// of each option to support merging with config file values.
 CLI_PARSE_RESULT parse_arguments_relaxed(std::vector<std::string> &arguments) {
   CLI_PARSE_RESULT res;
   int i;

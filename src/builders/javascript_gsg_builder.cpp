@@ -23,8 +23,6 @@ string_view JavaScriptGSGBuilder::slice(const string &src, TSNode n) {
 string_view JavaScriptGSGBuilder::name_of(TSNode n, const string &src) {
   TSNode name = ts_node_child_by_field_name(n, "name", 4);
   if (!ts_node_is_null(name)) return slice(src, name);
-  // method_definition: name is under field 'name' too, but can be
-  // property_identifier fallback to first identifier
   int m = ts_node_named_child_count(n);
   for (int i = 0; i < m; ++i) {
     TSNode ch = ts_node_named_child(n, i);
@@ -34,7 +32,6 @@ string_view JavaScriptGSGBuilder::name_of(TSNode n, const string &src) {
   return string_view{};
 }
 
-// Boolean alternation counting for JS (&& vs ||)
 enum class JSBoolOp { And, Or, Not, Unknown };
 
 static string_view js_slice(const string &src, TSNode n) {
@@ -64,11 +61,7 @@ static JSBoolOp js_get_bool_op(TSNode n, const string &src) {
   n = js_unwrap_parens(n);
   string ty = t(n);
   if (ty == "binary_expression") {
-    // operator is an anonymous child; grab operator token text by slicing
-    // between children Heuristic: extract full text of node, look for '&&' or
-    // '||'
     auto s = js_slice(src, n);
-    // find first occurrence
     if (s.find("&&") != string::npos) return JSBoolOp::And;
     if (s.find("||") != string::npos) return JSBoolOp::Or;
   } else if (ty == "unary_expression") {
@@ -83,7 +76,6 @@ static unsigned int js_count_bool_alternations(TSNode n, const string &src) {
   string ty = t(n);
   unsigned int c = 0;
   if (ty == "binary_expression") {
-    // left and right named children
     TSNode left = ts_node_child_by_field_name(n, "left", 4);
     TSNode right = ts_node_child_by_field_name(n, "right", 5);
     JSBoolOp curr = js_get_bool_op(n, src);
@@ -117,7 +109,7 @@ unsigned int JavaScriptGSGBuilder::js_count_bool_ops_expr(TSNode n, int nesting,
   }
   if (ty == "unary_expression") {
     auto s = js_slice(src, n);
-    if (!s.empty() && s[0] == '!') return 1;  // negation
+    if (!s.empty() && s[0] == '!') return 1;
   }
   if (ty == "conditional_expression") {
     unsigned int c = 1 + static_cast<unsigned int>(nesting);
@@ -143,7 +135,6 @@ std::vector<GSGNode> JavaScriptGSGBuilder::build_functions(TSNode root,
     if (ty == "function_declaration") {
       funcs.emplace_back(build_function(ch, src));
     } else if (ty == "class_declaration") {
-      // dig into class_body for method_definition
       TSNode body = ts_node_child_by_field_name(ch, "body", 4);
       int m = ts_node_named_child_count(body);
       for (int j = 0; j < m; ++j) {
@@ -199,7 +190,6 @@ void JavaScriptGSGBuilder::build_block_children(TSNode n, const string &src,
             GSGNode cs;
             cs.kind = GSGNodeKind::Case;
             cs.loc = loc(cc);
-            // JS grammar uses 'consequent' field for case body
             TSNode cbody = ts_node_child_by_field_name(cc, "consequent", 10);
             if (!ts_node_is_null(cbody)) {
               string cbty = t(cbody);
@@ -314,7 +304,6 @@ GSGNode JavaScriptGSGBuilder::build_if(TSNode n, const string &src) {
       eif.kind = GSGNodeKind::ElseIf;
       g.children.emplace_back(std::move(eif));
     } else {
-      // Normalize else-if wrapped in a single-statement block (if present)
       int an = ts_node_named_child_count(alt);
       if (an == 1) {
         TSNode only = ts_node_named_child(alt, 0);
@@ -351,7 +340,6 @@ GSGNode JavaScriptGSGBuilder::build_for(TSNode n, const string &src) {
   GSGNode g;
   g.kind = GSGNodeKind::For;
   g.loc = loc(n);
-  // Python-style parity: do not add boolean cost for for-loop condition
   TSNode body = ts_node_child_by_field_name(n, "body", 4);
   if (!ts_node_is_null(body)) build_block_children(body, src, g.children, 1);
   return g;

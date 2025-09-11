@@ -74,7 +74,7 @@ int main() {
       {"tests/src/python/test_recursive.py", 0},
       {"tests/src/python/test_ternary_op.py", 1},
       {"tests/src/python/test_try.py", 3},
-      {"tests/src/python/test_try_nested.py", 12},
+      {"tests/src/python/test_try_nested.py", 13},
       {"tests/src/python/test_break_continue.py", 3},
       {"tests/src/python/test_class.py", 1},
       {"tests/src/python/test_decorator.py", 1},

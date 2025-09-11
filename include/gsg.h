@@ -1,12 +1,11 @@
 #ifndef GSG_H
 #define GSG_H
 
+#include <tree_sitter/api.h>
+
 #include <memory>
 #include <string>
-#include <string_view>
 #include <vector>
-
-#include <tree_sitter/api.h>
 
 // Supported languages (extensible)
 enum class Language {

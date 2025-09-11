@@ -24,8 +24,6 @@ compute_cognitive_complexity_gsg(const GSGNode &node, int nesting_level) {
 
   switch (node.kind) {
     case GSGNodeKind::Function: {
-      // Strict decorator-factory pattern: exactly two statements, a nested
-      // function followed by a return.
       if (node.children.size() == 2 &&
           node.children[0].kind == GSGNodeKind::Function &&
           node.children[1].kind == GSGNodeKind::Expr &&
@@ -67,29 +65,20 @@ compute_cognitive_complexity_gsg(const GSGNode &node, int nesting_level) {
       break;
     }
     case GSGNodeKind::ElseIf: {
-      unsigned int stmt = node.addl_cost;  // only bool ops for elif
+      unsigned int stmt = node.addl_cost;
       complexity += stmt;
       lines.push_back(build_line_complexity_from_loc(node.loc, stmt));
       count_children(nesting_level + 1);
       break;
     }
+    case GSGNodeKind::Try:
     case GSGNodeKind::Switch: {
       count_children(nesting_level);
       break;
     }
-    case GSGNodeKind::Case: {
-      count_children(nesting_level + 1);
-      break;
-    }
+    case GSGNodeKind::Finally:
+    case GSGNodeKind::Case:
     case GSGNodeKind::Else: {
-      count_children(nesting_level + 1);
-      break;
-    }
-    case GSGNodeKind::Try: {
-      count_children(nesting_level + 1);
-      break;
-    }
-    case GSGNodeKind::Finally: {
       count_children(nesting_level + 1);
       break;
     }
@@ -106,7 +95,6 @@ compute_cognitive_complexity_gsg(const GSGNode &node, int nesting_level) {
       break;
     }
     default: {
-      // Other nodes just traverse
       count_children(nesting_level);
       break;
     }
@@ -115,7 +103,6 @@ compute_cognitive_complexity_gsg(const GSGNode &node, int nesting_level) {
   return {complexity, lines};
 }
 
-// Builder factory
 std::unique_ptr<IBuilder> make_builder(Language lang) {
   switch (lang) {
     case Language::Python:
@@ -123,7 +110,6 @@ std::unique_ptr<IBuilder> make_builder(Language lang) {
     case Language::JavaScript:
       return std::make_unique<JavaScriptGSGBuilder>();
     case Language::TypeScript:
-      // Reuse JS builder for TS
       return std::make_unique<JavaScriptGSGBuilder>();
     case Language::C:
     case Language::Cpp:
@@ -133,7 +119,6 @@ std::unique_ptr<IBuilder> make_builder(Language lang) {
   }
 }
 
-// Entry point: produce function complexities for a given language
 std::vector<FunctionComplexity> functions_complexity_file(
     const std::string &source_code, TSParser *parser, Language lang) {
   std::vector<FunctionComplexity> functions;

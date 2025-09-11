@@ -1,11 +1,10 @@
 #ifndef COGNITIVE_COMPLEXITY_H
 #define COGNITIVE_COMPLEXITY_H
 
-#include <cstring>
-#include <iostream>
+#include <tree_sitter/api.h>
+
 #include <vector>
 
-#include <tree_sitter/api.h>
 #include "./gsg.h"
 
 extern "C" {
@@ -45,11 +44,9 @@ struct CodeComplexity {
 
 enum BoolOp { And, Or, Not, Unknown };
 
-// Entry-point to get complexity per function for a given language
 std::vector<FunctionComplexity> functions_complexity_file(const std::string&,
                                                           TSParser*, Language);
 
-// Compute complexity from a GSG node
 std::pair<unsigned int, std::vector<LineComplexity>>
 compute_cognitive_complexity_gsg(const GSGNode&, int);
 

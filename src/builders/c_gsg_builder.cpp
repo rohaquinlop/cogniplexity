@@ -84,7 +84,6 @@ void CLikeGSGBuilder::collect_functions_in_scope(TSNode n, const string &src,
         merged = qual + "::" + aq;
       out.emplace_back(build_function(ch, src, merged));
     } else if (ty == "template_declaration") {
-      // Iterate through template children
       int tn = ts_node_named_child_count(ch);
       for (int ti = 0; ti < tn; ++ti) {
         TSNode inner = ts_node_named_child(ch, ti);
@@ -93,7 +92,6 @@ void CLikeGSGBuilder::collect_functions_in_scope(TSNode n, const string &src,
         if (ity == "function_definition") {
           out.emplace_back(build_function(inner, src, qual));
         } else if (ity == "field_declaration_list") {
-          // Attempt to pair with preceding identifier as class name
           string q = qual;
           if (ti - 1 >= 0) {
             TSNode prev = ts_node_named_child(ch, ti - 1);
@@ -111,7 +109,6 @@ void CLikeGSGBuilder::collect_functions_in_scope(TSNode n, const string &src,
       }
     } else if (ty == "class_specifier" || ty == "struct_specifier" ||
                ty == "union_specifier") {
-      // Enter class scope
       TSNode nm = ts_node_child_by_field_name(ch, "name", 4);
       string q = qual;
       if (!ts_node_is_null(nm)) {
@@ -121,18 +118,15 @@ void CLikeGSGBuilder::collect_functions_in_scope(TSNode n, const string &src,
       TSNode body = ts_node_child_by_field_name(ch, "body", 4);
       if (!ts_node_is_null(body)) collect_functions_in_scope(body, src, q, out);
     } else if (ty == "namespace_definition") {
-      // Enter namespace scope
       TSNode nm = ts_node_child_by_field_name(ch, "name", 4);
       string q = qual;
       if (!ts_node_is_null(nm)) {
         string nn = string(slice(src, nm));
-        // normalized namespace path may include :: already
         q = q.empty() ? nn : (qual + "::" + nn);
       }
       TSNode body = ts_node_child_by_field_name(ch, "body", 4);
       if (!ts_node_is_null(body)) collect_functions_in_scope(body, src, q, out);
     } else {
-      // Recurse into other declaration lists/blocks
       collect_functions_in_scope(ch, src, qual, out);
     }
   }
@@ -140,12 +134,10 @@ void CLikeGSGBuilder::collect_functions_in_scope(TSNode n, const string &src,
 
 string CLikeGSGBuilder::function_name_from_declarator(TSNode decl,
                                                       const string &src) {
-  // Try textual extraction: substring of declarator up to first '('
   string_view full = slice(src, decl);
   size_t p = full.find('(');
   if (p != string::npos) {
     string pre(full.substr(0, p));
-    // trim spaces
     auto trim = [](string &s) {
       size_t a = s.find_first_not_of(" \t\n");
       size_t b = s.find_last_not_of(" \t\n");
@@ -155,14 +147,11 @@ string CLikeGSGBuilder::function_name_from_declarator(TSNode decl,
         s = s.substr(a, b - a + 1);
     };
     trim(pre);
-    // remove leading pointer/reference/parentheses wrappers
     while (!pre.empty() && (pre[0] == '*' || pre[0] == '&' || pre[0] == '('))
       pre.erase(pre.begin());
     trim(pre);
-    // common pattern has qualifiers like ns::C::m or operator<<; keep as-is
     if (!pre.empty()) return pre;
   }
-  // Fallback: Search for first identifier under declarator subtree
   int n = ts_node_named_child_count(decl);
   for (int i = 0; i < n; ++i) {
     TSNode ch = ts_node_named_child(decl, i);
@@ -203,7 +192,6 @@ void CLikeGSGBuilder::build_block_children(TSNode n, const string &src,
   for (int i = 0; i < m; ++i) {
     TSNode s = ts_node_named_child(n, i);
     string ty = t(s);
-    // Always scan for lambdas inside this statement
     collect_lambdas_in_node(s, src, out);
     if (ty == "if_statement")
       out.emplace_back(build_if(s, src));
@@ -228,7 +216,6 @@ void CLikeGSGBuilder::build_block_children(TSNode n, const string &src,
           int bn = ts_node_named_child_count(cc);
           for (int k = 0; k < bn; ++k) {
             TSNode bch = ts_node_named_child(cc, k);
-            // heuristically treat nested statements under case
             if (ts_node_is_named(bch))
               build_block_children(bch, src, cs.children, nesting + 1);
           }
@@ -289,14 +276,10 @@ GSGNode CLikeGSGBuilder::build_if(TSNode n, const string &src) {
   if (!ts_node_is_null(alt)) {
     string ty = t(alt);
     if (ty == "if_statement") {
-      // Direct else-if
       auto eif = build_if(alt, src);
       eif.kind = GSGNodeKind::ElseIf;
       g.children.emplace_back(std::move(eif));
     } else {
-      // Some grammars wrap else-if inside a single-statement block.
-      // If the alternative contains exactly one named child and it is an
-      // if_statement, normalize it to ElseIf to avoid extra nesting.
       int an = ts_node_named_child_count(alt);
       if (an == 1) {
         TSNode only = ts_node_named_child(alt, 0);
@@ -307,7 +290,6 @@ GSGNode CLikeGSGBuilder::build_if(TSNode n, const string &src) {
           return g;
         }
       }
-      // Regular else body
       GSGNode el;
       el.kind = GSGNodeKind::Else;
       el.loc = loc(alt);
@@ -334,7 +316,6 @@ GSGNode CLikeGSGBuilder::build_for(TSNode n, const string &src) {
   GSGNode g;
   g.kind = GSGNodeKind::For;
   g.loc = loc(n);
-  // Python-style parity: do not add boolean cost for for-loop condition
   TSNode body = ts_node_child_by_field_name(n, "body", 4);
   if (!ts_node_is_null(body)) build_block_children(body, src, g.children, 1);
   return g;
@@ -352,7 +333,6 @@ GSGNode CLikeGSGBuilder::build_do_while(TSNode n, const string &src) {
   return g;
 }
 
-// Expression costs: handle logical ops and ternary
 static inline bool has_logical_token(const string &s) {
   return s.find("&&") != string::npos || s.find("||") != string::npos ||
          s.find('!') != string::npos;
@@ -427,7 +407,7 @@ void CLikeGSGBuilder::collect_lambdas_in_node(TSNode n, const string &src,
   string ty = t(n);
   if (ty == "lambda_expression") {
     out.emplace_back(build_lambda(n, src));
-    return;  // don't double-collect children
+    return;
   }
   int m = ts_node_named_child_count(n);
   for (int i = 0; i < m; ++i)
@@ -438,12 +418,10 @@ GSGNode CLikeGSGBuilder::build_lambda(TSNode n, const string &src) {
   GSGNode g;
   g.kind = GSGNodeKind::Function;
   g.loc = loc(n);
-  // Name as lambda@row:col
-  g.name = "lambda@" + std::to_string(g.loc.row) + ":" +
+  g.name = "lambda @ " + std::to_string(g.loc.row) + ":" +
            std::to_string(g.loc.start_col);
   TSNode body = ts_node_child_by_field_name(n, "body", 4);
   if (!ts_node_is_null(body)) {
-    // Use a local builder object to recurse
     CLikeGSGBuilder tmp;
     tmp.build_block_children(body, src, g.children, 0);
   }
