@@ -1,0 +1,186 @@
+name: Release Binaries
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-upload:
+    name: Build ${{ matrix.label }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            label: linux-x86_64
+            shell: bash
+          - os: macos-13
+            label: macos-x86_64
+            shell: bash
+          - os: macos-14
+            label: macos-aarch64
+            shell: bash
+          - os: windows-latest
+            label: windows-x86_64
+            shell: pwsh
+
+    env:
+      VERSION: ${{ github.ref_name }}
+      BUILD_DIR: build
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up CMake (Linux/macOS)
+        if: runner.os != 'Windows'
+        uses: lukka/get-cmake@v3.31.0
+
+      # Configure
+      - name: Configure (Linux/macOS)
+        if: runner.os != 'Windows'
+        run: |
+          cmake -S . -B "$BUILD_DIR" -DCMAKE_BUILD_TYPE=Release
+
+      - name: Configure (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          cmake -S . -B "$env:BUILD_DIR" -G "Visual Studio 17 2022" -A x64
+
+      # Build
+      - name: Build (Linux/macOS)
+        if: runner.os != 'Windows'
+        run: |
+          cmake --build "$BUILD_DIR" --config Release --parallel
+
+      - name: Build (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          cmake --build "$env:BUILD_DIR" --config Release
+
+      # Tests
+      - name: Test (Linux/macOS)
+        if: runner.os != 'Windows'
+        run: |
+          ctest --test-dir "$BUILD_DIR" --output-on-failure
+
+      - name: Test (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          ctest --test-dir "$env:BUILD_DIR" -C Release --output-on-failure
+
+      # Package binaries
+      - name: Package (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist/cognity
+          cp "$BUILD_DIR/cognity" dist/cognity/
+          tar -C dist -czf "cognity-${VERSION}-${{ matrix.label }}.tar.gz" cognity
+
+      - name: Package (macOS)
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Single-config generators on macOS place binary at build/cognity
+          mkdir -p dist/cognity
+          cp "$BUILD_DIR/cognity" dist/cognity/
+          tar -C dist -czf "cognity-${VERSION}-${{ matrix.label }}.tar.gz" cognity
+
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist/cognity | Out-Null
+          Copy-Item "$env:BUILD_DIR/Release/cognity.exe" dist/cognity/
+          Compress-Archive -Path dist/cognity/* -DestinationPath "cognity-$env:VERSION-${{ matrix.label }}.zip"
+
+      # Checksums
+      - name: SHA256 (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          f="cognity-${VERSION}-${{ matrix.label }}.tar.gz"
+          sha256sum "$f" > "$f.sha256"
+
+      - name: SHA256 (macOS)
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          f="cognity-${VERSION}-${{ matrix.label }}.tar.gz"
+          shasum -a 256 "$f" > "$f.sha256"
+
+      - name: SHA256 (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $f = "cognity-$env:VERSION-${{ matrix.label }}.zip"
+          $hash = (Get-FileHash -Algorithm SHA256 $f).Hash.ToLower()
+          Set-Content -Path "$f.sha256" -Value "$hash  $f"
+
+      - name: Upload to Release (Linux/macOS)
+        if: runner.os != 'Windows'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            cognity-${{ env.VERSION }}-${{ matrix.label }}.tar.gz
+            cognity-${{ env.VERSION }}-${{ matrix.label }}.tar.gz.sha256
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-and-upload-linux-aarch64:
+    name: Build linux-aarch64
+    runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ github.ref_name }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build & Package in aarch64 container
+        uses: uraimo/run-on-arch-action@v2
+        with:
+          arch: aarch64
+          distro: ubuntu22.04
+          githubToken: ${{ github.token }}
+          install: |
+            apt-get update
+            DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+              build-essential cmake git ca-certificates
+          run: |
+            set -euo pipefail
+            cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+            cmake --build build --parallel
+            ctest --test-dir build --output-on-failure
+            mkdir -p dist/cognity
+            cp build/cognity dist/cognity/
+            tar -C dist -czf "cognity-${VERSION}-linux-aarch64.tar.gz" cognity
+            sha256sum "cognity-${VERSION}-linux-aarch64.tar.gz" > "cognity-${VERSION}-linux-aarch64.tar.gz.sha256"
+
+      - name: Upload to Release (linux-aarch64)
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            cognity-${{ env.VERSION }}-linux-aarch64.tar.gz
+            cognity-${{ env.VERSION }}-linux-aarch64.tar.gz.sha256
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload to Release (Windows)
+        if: runner.os == 'Windows'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            cognity-${{ env.VERSION }}-${{ matrix.label }}.zip
+            cognity-${{ env.VERSION }}-${{ matrix.label }}.zip.sha256
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
