@@ -84,6 +84,12 @@ int main(int argc, char **argv) {
     return a.fn.row < b.fn.row;
   };
 
+  // Quiet mode suppresses all normal output (table/JSON/CSV). Exit code only.
+  if (cli_args.quiet) {
+    ts_parser_delete(parser);
+    return any_exceeds ? 2 : 0;
+  }
+
   if (cli_args.output_json) {
     report::print_json(all_rows, cli_args.sort, cli_args.max_complexity_allowed,
                        cli_args.ignore_complexity, cli_args.detail);

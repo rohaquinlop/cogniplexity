@@ -222,12 +222,15 @@ void print_csv(std::vector<Row> rows, SortType sort, int max_complexity_allowed,
 void print_table(std::vector<Row> rows, SortType sort, int max_fn_width,
                  int max_complexity_allowed, bool ignore_complexity, bool quiet,
                  DetailType detail) {
+  // Quiet mode: suppress all output entirely
+  if (quiet) return;
+
   sort_rows(rows, sort);
 
   term::Painter painter;
   painter.init(false, false);
 
-  if ((quiet || detail == LOW) && !ignore_complexity) {
+  if ((detail == LOW) && !ignore_complexity) {
     rows.erase(std::remove_if(rows.begin(), rows.end(),
                               [&](const Row &r) {
                                 return r.fn.complexity <=

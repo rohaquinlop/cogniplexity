@@ -32,6 +32,9 @@ cognity src -l py,js
 # Set a threshold and output JSON/CSV
 cognity . -mx 10 --output-json --output-csv
 
+# Quiet mode (no output, exit code only)
+cognity . -mx 10 -q
+
 # See all options
 cognity --help
 ```
@@ -66,6 +69,8 @@ output_csv = false
 - C (`.c`), C++ (`.cpp`, `.cc`, `.cxx`)
 
 Unsupported files are skipped. If filters match nothing, Cognity reports: `No matching source files found`.
+
+Note on quiet mode: with `-q/--quiet`, Cognity prints nothing and returns only an exit code (0 if no function exceeds `-mx`, 2 if any do, 1 on error).
 
 ## Build
 
